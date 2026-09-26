@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proyecto Final Parte 2 | BanBajío | Equipo 6</title>
+<style>
+:root {
+  --navy:#12344d; --blue:#1d4ed8; --light:#f5f8fb; --line:#dbe4ec;
+  --text:#1f2937; --muted:#64748b; --green:#0f766e; --amber:#92400e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eef3f7;color:var(--text);font-family:Arial,Helvetica,sans-serif;line-height:1.58}
+.container{max-width:1040px;margin:36px auto;background:#fff;padding:54px 68px;box-shadow:0 8px 28px rgba(15,23,42,.08)}
+.cover{text-align:center;padding:72px 10px 90px;border-bottom:2px solid var(--line)}
+.cover .school{font-weight:700;letter-spacing:.03em;color:var(--navy);font-size:.95rem}
+.cover h1{font-size:2.35rem;margin:56px 0 2px;color:#111827}
+.cover h2{font-size:1.5rem;font-weight:400;margin:0;color:#334155}
+.authors{margin-top:58px}
+.term{margin-top:68px;font-weight:700}
+h2{color:var(--navy);margin-top:46px;padding-bottom:9px;border-bottom:2px solid var(--line)}
+h3{color:#234b68;margin-top:29px}
+h4{color:#334155;margin:24px 0 8px}
+p{text-align:justify;margin:0 0 14px}
+a{color:#174ea6}
+sup a{text-decoration:none;font-weight:700}
+.toc,.note,.method,.result{background:var(--light);border:1px solid var(--line);border-radius:8px;padding:18px 22px;margin:20px 0}
+.toc a{text-decoration:none;color:var(--navy)}
+.method{border-left:5px solid var(--blue)}
+.note{border-left:5px solid #d97706}
+.result{border-left:5px solid var(--green)}
+.formula{font-family:"Cambria Math","Times New Roman",serif;text-align:center;font-size:1.08rem;background:#f8fafc;padding:10px 12px;margin:10px 0;border-radius:6px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.78rem;font-weight:700;margin-left:6px}
+.reported{background:#dcfce7;color:#166534}
+.constructed{background:#dbeafe;color:#1e40af}
+.proxy{background:#fef3c7;color:#92400e}
+.table-wrap{overflow-x:auto;margin:17px 0 23px}
+table{width:100%;border-collapse:collapse;font-size:.91rem}
+th{background:var(--navy);color:#fff;text-align:left;padding:9px 10px;vertical-align:bottom}
+td{border-bottom:1px solid #e2e8f0;padding:8px 10px;vertical-align:top}
+tbody tr:nth-child(even){background:#f8fafc}
+.num{text-align:right;white-space:nowrap}
+.small{font-size:.88rem;color:var(--muted)}
+.chart{border:1px solid var(--line);border-radius:8px;padding:12px;margin:18px 0 24px}
+.references li{margin-bottom:10px}
+.risk-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0}
+.risk-card{border:1px solid var(--line);border-radius:8px;padding:15px;background:#fbfdff}
+.risk-card strong{color:var(--navy)}
+.period-card{border:1px solid var(--line);border-left:5px solid var(--blue);border-radius:8px;padding:16px 20px;margin:16px 0;background:#fbfdff}
+.period-card h4{margin:0 0 6px;color:var(--navy);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+.period-tag{background:var(--navy);color:#fff;border-radius:5px;padding:1px 9px;font-size:.8rem;font-weight:700}
+.move-up{color:#166534;font-weight:700}
+.move-down{color:#b91c1c;font-weight:700}
+.footer{border-top:1px solid var(--line);margin-top:55px;padding-top:18px;color:var(--muted);font-size:.86rem}
+@media(max-width:760px){.container{margin:0;padding:28px 18px}.risk-grid{grid-template-columns:1fr}}
+@media print{body{background:#fff}.container{box-shadow:none;margin:0;max-width:none;padding:30px}a{color:#000;text-decoration:none}}
+</style>
+</head>
+<body>
+<div class="container">
+
+<section class="cover">
+  <div class="school">INSTITUTO TECNOLÓGICO Y DE ESTUDIOS SUPERIORES DE OCCIDENTE</div>
+  <h1>Análisis del Riesgo</h1>
+  <h2>Proyecto Final — Parte 2</h2>
+  <p style="text-align:center;margin-top:6px;font-weight:600;color:#334155">Análisis de los cambios en el precio y sus causas</p>
+  <p style="text-align:center;margin-top:16px"><strong>Activo analizado:</strong> Banco del Bajío, S.A., Institución de Banca Múltiple (BBAJIO)</p>
+  <div class="authors">
+    <strong>Presenta</strong><br>
+    Alan Jesús Hernández Soto (752714)<br>
+    Jeronimo Rojas Alvarado (731609)<br>
+    Francisco Josué Ramírez Avila (747819)<br>
+    JP Mendez
+  </div>
+  <div class="term">Otoño 2026</div>
+</section>
+
+<div class="toc">
+<strong>Contenido</strong>
+<ol>
+<li><a href="#intro">Introducción</a></li>
+<li><a href="#serie">Exploración de la serie histórica</a></li>
+<li><a href="#eventos">Identificación de eventos y explicación de los cambios</a></li>
+<li><a href="#pib">Relación con el entorno económico</a></li>
+<li><a href="#reciente">Análisis del periodo más reciente</a></li>
+<li><a href="#conclusion">Conclusión integradora</a></li>
+<li><a href="#referencias">Referencias</a></li>
+</ol>
+</div>
+
+<h2 id="intro">1. Introducción</h2>
+<p>La Parte 1 de este proyecto analizó a Banco del Bajío (BanBajío) desde sus estados financieros: qué tipo de banco es, cómo ha evolucionado su rentabilidad y qué riesgos enfrenta. Esa parte terminó con una hipótesis: que la acción BBAJIO debería mostrar una volatilidad moderada pero sensible a choques externos. Esta segunda parte pone esa hipótesis a prueba desde un ángulo distinto — no los estados financieros, sino el <strong>precio de mercado</strong> de la acción.</p>
+<p>El objetivo no es solo describir cómo se ha movido el precio de BBAJIO desde su salida a bolsa (8 de junio de 2017) hasta el primer semestre de 2026, sino conectar esos movimientos con hechos reales del entorno económico, político y empresarial que los inversionistas no controlan ni pueden anticipar por completo. Para ello se construye la serie histórica de precios y rendimientos, se estima el máximo drawdown, se identifican al menos cinco periodos de movimientos relevantes y se investigan las noticias y eventos asociados a cada uno; después se compara el rendimiento anual del activo con el crecimiento del PIB de México, se analiza el último año de la serie con mayor detalle, y se cierra con una reflexión integradora sobre lo que este ejercicio enseña acerca del riesgo y la incertidumbre en los mercados financieros.</p>
+<div class="method">
+<strong>Nota metodológica.</strong> No existe una fuente única, gratuita y con acceso automatizado que entregue el histórico diario completo 2017–2026 de BBAJIO en la BMV. La serie que se usa aquí combina <span class="badge reported">datos verificados</span> (precio de la OPI, máximo y mínimo históricos, la caída electoral de junio de 2024, cotizaciones recientes) con una <span class="badge constructed">serie reconstruida</span> apoyada en avisos de recompra de acciones ante la BMV (2019) y en la cotización OTC real de BBAJIO en EE. UU. convertida a pesos con el tipo de cambio histórico. El detalle completo de esta construcción, con su código y sus fuentes, está documentado en el notebook <em>Calculos_Proyecto_Final_Parte_2_Equipo_6.ipynb</em> que acompaña este reporte. Esta es la misma lógica de transparencia —separar lo verificado de lo construido— que se usó en la Parte 1.
+</div>
+
+<h2 id="serie">2. Exploración de la serie histórica</h2>
+<p>La Gráfica 1 muestra el precio mensual de BBAJIO desde su debut en la BMV el 8 de junio de 2017 a $29.50 por acción, hasta el 9 de septiembre de 2026, último dato disponible al cierre de este análisis ($57.67). Las franjas de color marcan los siete periodos de movimientos relevantes que se explican con detalle en la sección 3.</p>
+
+<div class="chart">
+<svg viewBox="0 0 900 340" xmlns="http://www.w3.org/2000/svg">
+<style>
+.axis{font:11px Arial,sans-serif;fill:#475569}
+.grid{stroke:#e2e8f0;stroke-width:1}
+.line{fill:none;stroke:#1d4ed8;stroke-width:2.6}
+</style>
+<rect x="104.9" y="18" width="117.5" height="276" fill="#fde68a" opacity="0.55"/><rect x="289.6" y="18" width="53.9" height="276" fill="#fecaca" opacity="0.55"/><rect x="348.5" y="18" width="205.5" height="276" fill="#bbf7d0" opacity="0.55"/><rect x="555.5" y="18" width="80.8" height="276" fill="#e2e8f0" opacity="0.55"/><rect x="673.5" y="18" width="2.2" height="276" fill="#fecaca" opacity="0.55"/><rect x="680.8" y="18" width="66.3" height="276" fill="#fed7aa" opacity="0.55"/><rect x="747.3" y="18" width="127.6" height="276" fill="#bfdbfe" opacity="0.55"/>
+<line x1="60" y1="294.0" x2="880" y2="294.0" class="grid"/><text x="51" y="298.0" text-anchor="end" class="axis">0</text><line x1="60" y1="261.5" x2="880" y2="261.5" class="grid"/><text x="51" y="265.5" text-anchor="end" class="axis">10</text><line x1="60" y1="229.1" x2="880" y2="229.1" class="grid"/><text x="51" y="233.1" text-anchor="end" class="axis">20</text><line x1="60" y1="196.6" x2="880" y2="196.6" class="grid"/><text x="51" y="200.6" text-anchor="end" class="axis">30</text><line x1="60" y1="164.1" x2="880" y2="164.1" class="grid"/><text x="51" y="168.1" text-anchor="end" class="axis">40</text><line x1="60" y1="131.6" x2="880" y2="131.6" class="grid"/><text x="51" y="135.6" text-anchor="end" class="axis">50</text><line x1="60" y1="99.2" x2="880" y2="99.2" class="grid"/><text x="51" y="103.2" text-anchor="end" class="axis">60</text><line x1="60" y1="66.7" x2="880" y2="66.7" class="grid"/><text x="51" y="70.7" text-anchor="end" class="axis">70</text><line x1="60" y1="34.2" x2="880" y2="34.2" class="grid"/><text x="51" y="38.2" text-anchor="end" class="axis">80</text>
+<text x="104.9" y="314" text-anchor="middle" class="axis">2018</text><line x1="104.9" y1="18" x2="104.9" y2="294" stroke="#eef2f7" stroke-width="1"/><text x="193.5" y="314" text-anchor="middle" class="axis">2019</text><line x1="193.5" y1="18" x2="193.5" y2="294" stroke="#eef2f7" stroke-width="1"/><text x="282.0" y="314" text-anchor="middle" class="axis">2020</text><line x1="282.0" y1="18" x2="282.0" y2="294" stroke="#eef2f7" stroke-width="1"/><text x="370.9" y="314" text-anchor="middle" class="axis">2021</text><line x1="370.9" y1="18" x2="370.9" y2="294" stroke="#eef2f7" stroke-width="1"/><text x="459.4" y="314" text-anchor="middle" class="axis">2022</text><line x1="459.4" y1="18" x2="459.4" y2="294" stroke="#eef2f7" stroke-width="1"/><text x="548.0" y="314" text-anchor="middle" class="axis">2023</text><line x1="548.0" y1="18" x2="548.0" y2="294" stroke="#eef2f7" stroke-width="1"/><text x="636.6" y="314" text-anchor="middle" class="axis">2024</text><line x1="636.6" y1="18" x2="636.6" y2="294" stroke="#eef2f7" stroke-width="1"/><text x="725.4" y="314" text-anchor="middle" class="axis">2025</text><line x1="725.4" y1="18" x2="725.4" y2="294" stroke="#eef2f7" stroke-width="1"/><text x="814.0" y="314" text-anchor="middle" class="axis">2026</text><line x1="814.0" y1="18" x2="814.0" y2="294" stroke="#eef2f7" stroke-width="1"/>
+<line x1="60" y1="294" x2="880" y2="294" stroke="#94a3b8"/>
+<path d="M60.0,196.8 L67.4,194.8 L74.8,192.8 L82.2,190.7 L89.5,188.9 L96.9,187.0 L104.3,185.3 L111.7,186.3 L119.1,187.2 L126.5,188.2 L133.9,190.2 L141.3,192.2 L148.6,194.1 L156.0,195.6 L163.4,197.2 L170.8,198.7 L178.2,201.7 L185.6,204.4 L193.0,200.9 L200.4,197.2 L207.7,191.4 L215.1,184.3 L222.5,175.5 L229.9,164.8 L237.3,166.8 L244.7,177.6 L252.1,192.0 L259.5,190.9 L266.8,194.7 L274.2,194.9 L281.6,192.6 L289.0,193.1 L296.4,197.1 L303.8,224.4 L311.2,236.3 L318.6,226.4 L325.9,229.6 L333.3,236.5 L340.7,237.6 L348.1,245.0 L355.5,238.8 L362.9,214.5 L370.3,204.0 L377.7,211.8 L385.0,219.6 L392.4,204.9 L399.8,190.7 L407.2,189.1 L414.6,178.3 L422.0,174.8 L429.4,171.2 L436.8,172.9 L444.1,172.8 L451.5,176.5 L458.9,175.7 L466.3,173.1 L473.7,130.8 L481.1,107.7 L488.5,127.7 L495.9,126.5 L503.2,182.2 L510.6,171.3 L518.0,154.1 L525.4,132.9 L532.8,115.5 L540.2,94.1 L547.6,91.1 L555.0,46.8 L562.3,73.5 L569.7,109.7 L577.1,102.2 L584.5,110.6 L591.9,127.0 L599.3,118.6 L606.7,115.1 L614.1,104.7 L621.4,120.4 L628.8,115.8 L636.2,107.3 L643.6,85.7 L651.0,96.7 L658.4,69.6 L665.8,80.1 L673.2,95.4 L680.5,119.3 L687.9,114.0 L695.3,144.1 L702.7,141.4 L710.1,154.4 L717.5,145.5 L724.9,132.6 L732.3,141.7 L739.6,150.2 L747.0,157.9 L754.4,151.8 L761.8,147.4 L769.2,143.7 L776.6,139.4 L784.0,135.0 L791.4,132.0 L798.7,129.0 L806.1,126.3 L813.5,124.1 L820.9,122.2 L828.3,120.5 L835.7,119.0 L843.1,116.0 L850.5,113.3 L857.8,110.5 L865.2,108.6 L872.6,109.6 L880.0,106.7" class="line"/>
+
+<circle cx="554.1" cy="41.8" r="4.5" fill="#fff" stroke="#0f766e" stroke-width="2.4"/>
+<text x="554.1" y="32.8" text-anchor="middle" class="axis" font-weight="700">Máx. $77.68 (26-ene-23)</text>
+<circle cx="343.4" cy="249.3" r="4.5" fill="#fff" stroke="#b91c1c" stroke-width="2.4"/>
+<text x="343.4" y="265.3" text-anchor="middle" class="axis" font-weight="700">Mín. $13.76 (10-sep-20)</text>
+
+<text x="18" y="156.0" transform="rotate(-90 18 156.0)" text-anchor="middle" class="axis">Precio (MXN/acción)</text>
+</svg>
+<p class="small" style="margin-top:6px">
+<span style="background:#fde68a;padding:1px 7px;border-radius:3px">P1</span> Incertidumbre política 2018–19 &nbsp;
+<span style="background:#fecaca;padding:1px 7px;border-radius:3px">P2</span> Crash COVID-19 &nbsp;
+<span style="background:#bbf7d0;padding:1px 7px;border-radius:3px">P3</span> Recuperación y ciclo alcista de tasas &nbsp;
+<span style="background:#e2e8f0;padding:1px 7px;border-radius:3px">P4</span> Corrección post-máximo &nbsp;
+<span style="background:#fecaca;padding:1px 7px;border-radius:3px">P5</span> Choque electoral jun-24 &nbsp;
+<span style="background:#fed7aa;padding:1px 7px;border-radius:3px">P6</span> Aranceles y normalización de margen &nbsp;
+<span style="background:#bfdbfe;padding:1px 7px;border-radius:3px">P7</span> Recuperación / transición de CEO
+</p>
+</div>
+
+<p>En términos simples, quien compró la acción en la OPI y la mantuvo hasta hoy obtuvo un rendimiento acumulado de aproximadamente <strong>+95.5%</strong> (equivalente a una tasa de crecimiento anual compuesta —CAGR— de <strong>7.51%</strong> en 9.25 años), un resultado moderado si se ve como promedio. Pero ese promedio esconde un camino muy accidentado: la volatilidad mensual anualizada de la serie es de aproximadamente <strong>34.9%</strong>, con años de rendimiento anual tan dispares como <strong>+71.5% en 2022</strong> y <strong>-14.3% en 2018</strong>. La acción nunca se movió en línea recta.</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Año</th><th class="num">Precio de cierre (MXN)</th><th class="num">Rendimiento anual</th></tr></thead>
+<tbody>
+<tr><td>2017 (desde la OPI, 8-jun)</td><td class="num">$33.48</td><td class="num move-up">+13.5%</td></tr>
+<tr><td>2018</td><td class="num">$28.68</td><td class="num move-down">-14.3%</td></tr>
+<tr><td>2019</td><td class="num">$31.23</td><td class="num move-up">+8.9%</td></tr>
+<tr><td>2020</td><td class="num">$27.73</td><td class="num move-down">-11.2%</td></tr>
+<tr><td>2021</td><td class="num">$36.44</td><td class="num move-up">+31.4%</td></tr>
+<tr><td>2022</td><td class="num">$62.50</td><td class="num move-up">+71.5%</td></tr>
+<tr><td>2023</td><td class="num">$57.51</td><td class="num move-down">-8.0%</td></tr>
+<tr><td>2024</td><td class="num">$49.71</td><td class="num move-down">-13.6%</td></tr>
+<tr><td>2025</td><td class="num">$52.32</td><td class="num move-up">+5.3%</td></tr>
+<tr><td>2026 (parcial, a 9-sep)</td><td class="num">$57.67</td><td class="num move-up">+10.2%</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>2.1 Máximo drawdown</h3>
+<div class="result">
+<strong>Máximo drawdown histórico: -65.4%</strong>, entre el pico de mayo de 2019 ($39.80, inferido de la cotización OTC de BBAJIO convertida a pesos) y el mínimo histórico verificado del 10 de septiembre de 2020 ($13.76). Fueron necesarios unos 468 días (15.6 meses) para llegar del pico al valle, y la acción tardó otros 515 días adicionales en recuperar ese nivel previo (hasta inicios de febrero de 2022). Para referencia, la caída desde el máximo histórico de enero de 2023 ($77.68) hasta el valle de marzo de 2025 ($41.90) fue de -46.1%, la segunda más severa del periodo.
+</div>
+<p>Es notable que el drawdown máximo no coincida con la fecha más citada por la prensa sobre la pandemia (9 de marzo de 2020, el peor día del IPC hasta ese momento), sino que se extienda seis meses más allá, hasta septiembre de 2020. La razón se explica en la sección 3.2: los programas de diferimiento de pagos que la banca mexicana implementó en 2020 retrasaron el reconocimiento contable del deterioro crediticio, por lo que el mercado siguió descontando riesgo de crédito bancario mucho después de que el índice general ya se estabilizaba.</p>
+
+<h3>2.2 Periodos identificados</h3>
+<p>A partir de los quiebres de tendencia visibles en la Gráfica 1 se identifican siete periodos de movimientos relevantes —más de los cinco solicitados—, resumidos aquí y explicados con detalle en la sección 3:</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Periodo</th><th>Fechas</th><th class="num">Variación</th><th>Qué fue</th></tr></thead>
+<tbody>
+<tr><td><strong>P1</strong></td><td>2018 – abr. 2019</td><td class="num move-up">+9.1%</td><td>Incertidumbre política (elección 2018, cancelación del NAIM)</td></tr>
+<tr><td><strong>P2</strong></td><td>feb. – 10-sep. 2020</td><td class="num move-down">-54.4%</td><td>Crash por COVID-19 hasta el mínimo histórico</td></tr>
+<tr><td><strong>P3</strong></td><td>sep. 2020 – 26-ene. 2023</td><td class="num move-up">+464.5%</td><td>Recuperación y ciclo alcista de tasas (con corrección intra-2022)</td></tr>
+<tr><td><strong>P4</strong></td><td>ene. – dic. 2023</td><td class="num move-down">-26.2%</td><td>Corrección tras el máximo histórico</td></tr>
+<tr><td><strong>P5</strong></td><td>3–4 jun. 2024</td><td class="num move-down">-10.0%</td><td>Choque electoral</td></tr>
+<tr><td><strong>P6</strong></td><td>jun. 2024 – mar. 2025</td><td class="num move-down">-26.4%</td><td>Aranceles de EE. UU. y normalización del margen</td></tr>
+<tr><td><strong>P7</strong></td><td>mar. 2025 – sep. 2026</td><td class="num move-up">+37.6%</td><td>Recuperación y transición de director general</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="eventos">3. Identificación de eventos y explicación de los cambios</h2>
+<p>Esta sección conecta cada uno de los siete periodos con hechos verificables. El hilo conductor es que ninguno de estos movimientos fue anticipado con certeza por los inversionistas: son choques —políticos, sanitarios, de política monetaria o comercial— y nueva información que se fue incorporando al precio conforme ocurría.</p>
+
+<div class="period-card">
+<h4>P1 · Incertidumbre política y cancelación del NAIM <span class="period-tag">2018 – abr. 2019</span></h4>
+<p>2018 fue un año electoral: Andrés Manuel López Obrador ganó la presidencia en julio con un mandato amplio, lo que generó incertidumbre inicial en los mercados sobre el rumbo de la política económica y regulatoria hacia sectores como el financiero. El golpe más concreto llegó en octubre-noviembre de 2018, cuando el gobierno entrante canceló el Nuevo Aeropuerto Internacional de México (NAIM) en Texcoco tras una consulta pública, decisión que generó una fuerte reacción negativa en el mercado accionario y cambiario mexicanos por la señal que enviaba sobre el respeto a compromisos de inversión ya contratados. BBAJIO cerró 2018 con un rendimiento de -14.3%. La recuperación hacia un pico local en abril de 2019 coincide, en parte, con que BanBajío ejecutó un programa activo de recompra de sus propias acciones durante 2019 (documentado en los avisos correspondientes ante la BMV), un factor específico de la empresa que sostuvo el precio incluso cuando el PIB de México se contrajo -0.3% ese año.</p>
+</div>
+
+<div class="period-card">
+<h4>P2 · Crash por COVID-19 <span class="period-tag">feb. – 10-sep. 2020</span></h4>
+<p>La pandemia de COVID-19 provocó la caída bursátil más severa del periodo. El 9 de marzo de 2020 el S&amp;P/BMV IPC tuvo su peor sesión hasta entonces (-6.42%), coincidiendo con el inicio de la pandemia y, el mismo día, con una guerra de precios del petróleo entre Arabia Saudita y Rusia que añadió presión sobre los mercados emergentes y exportadores de crudo. El PIB de México cayó -8.2% en el año, la contracción más fuerte en décadas. BBAJIO llegó a su <strong>mínimo histórico de $13.76 el 10 de septiembre de 2020</strong>, seis meses después del peor día bursátil de la pandemia — un rezago que no es casual.</p>
+</div>
+
+<div class="period-card">
+<h4>P2.1 · Por qué la banca tocó fondo después que el mercado general <span class="period-tag">abr. – sep. 2020</span></h4>
+<p>Entre marzo y abril de 2020, la Comisión Nacional Bancaria y de Valores (CNBV) y la Asociación de Bancos de México (ABM) autorizaron programas de diferimiento de pagos de capital e intereses de 4 a 6 meses para créditos personales, hipotecarios y empresariales, sin que esos créditos tuvieran que clasificarse como cartera vencida durante el periodo de gracia. Esto retrasó —no eliminó— el reconocimiento contable del deterioro crediticio. Conforme esos programas comenzaron a vencer a mediados de 2020 y los bancos anunciaron incrementos superiores a 50% en sus reservas preventivas, el mercado empezó a descontar con más claridad el riesgo de crédito real que la pandemia había generado en la cartera empresarial y de consumo. Por eso BBAJIO, a diferencia del índice general, siguió cayendo hasta septiembre: el golpe a la economía fue en marzo, pero el reconocimiento pleno del riesgo de crédito bancario tomó varios meses más en reflejarse en el precio.</p>
+</div>
+
+<div class="period-card">
+<h4>P3 · Recuperación y ciclo alcista de tasas <span class="period-tag">sep. 2020 – 26-ene. 2023</span></h4>
+<p>La recuperación combina varios factores. El anuncio de la vacuna de Pfizer el 9 de noviembre de 2020 detonó un repunte global de los mercados que benefició a la acción (fue, de hecho, su mejor mes en toda la serie: +43.8% en noviembre de 2020). El PIB mexicano rebotó con fuerza en 2021 (+6.1%) y siguió creciendo en 2022 (+3.9%). Pero el motor más específico para un banco fue el ciclo de alzas de tasas de interés de Banxico: la tasa de referencia pasó de un mínimo histórico de 4% en junio de 2021 a 10.50% a finales de 2022, incluyendo incrementos históricos de 75 puntos base. Como BanBajío tiene una base de activos más sensible a tasas que sus pasivos, este ciclo amplió su margen financiero de forma directa. La recuperación no fue lineal: entre marzo y junio de 2022 la acción tuvo una corrección intra-año de alrededor de -40%, coincidiendo con el periodo de mayor pánico global por el ritmo de endurecimiento monetario de la Reserva Federal de EE. UU. y temores de recesión, antes de recuperarse con fuerza en el segundo semestre. El periodo culmina el <strong>26 de enero de 2023 en el máximo histórico de $77.68</strong>, justo cuando la tasa de Banxico se acercaba a su punto más alto (11.25%, alcanzado en marzo de 2023) y BanBajío reportaba, según la Parte 1 de este proyecto, su año de mayor rentabilidad (ROE de 28.1% en 2023).</p>
+</div>
+
+<div class="period-card">
+<h4>P4 · Corrección tras el máximo histórico <span class="period-tag">2023</span></h4>
+<p>Tras tocar su máximo histórico, la acción corrigió -26.2% a lo largo de 2023 pese a que Banxico mantuvo la tasa de referencia en su nivel más alto (11.25%) durante todo el año y BanBajío seguía siendo muy rentable. Esto ilustra un punto importante para el análisis de riesgo: el precio de una acción puede anticipar información antes de que ocurra (en este caso, adelantó el pico de rentabilidad del banco) y corregir después aunque los fundamentos de corto plazo sigan siendo buenos, simplemente porque el mercado reajusta sus expectativas sobre cuánto durará ese nivel de rentabilidad excepcional.</p>
+</div>
+
+<div class="period-card">
+<h4>P5 · Choque electoral <span class="period-tag">3–4 jun. 2024</span></h4>
+<p>El 3 de junio de 2024, un día después de que Claudia Sheinbaum ganara la presidencia con una mayoría calificada de Morena y aliados en el Congreso, el S&amp;P/BMV IPC se desplomó -6.01% en una sola sesión, su peor día desde marzo de 2020. El sector financiero fue el más castigado: Banregio y Gentera cayeron más de 13%, Banorte más de 11%, y <strong>BBAJIO cerca de 10%</strong>. El detonante fue el temor de los inversionistas a la llamada "Plan C", un paquete de reformas constitucionales —incluida la reforma judicial, aprobada meses después— que se veía posible dada la mayoría calificada obtenida, con implicaciones percibidas como negativas para la certeza jurídica y regulatoria del sector financiero. Este es, de los siete periodos, el ejemplo más claro de un choque puramente político y de un solo día: no hubo ningún cambio en los fundamentos del banco entre el 3 y el 4 de junio, solo un cambio abrupto en las expectativas políticas de los inversionistas.</p>
+</div>
+
+<div class="period-card">
+<h4>P6 · Aranceles de EE. UU. y normalización del margen <span class="period-tag">jun. 2024 – mar. 2025</span></h4>
+<p>Dos fuerzas se combinan en este periodo. Primero, Banxico inició en marzo de 2024 un ciclo de recortes desde el máximo de 11.25%, que continuó durante 2024 y 2025; como se documentó en la Parte 1, esto comprimió el margen de interés neto de BanBajío (-100 puntos base en el margen antes de reservas del 4T25 frente al año anterior). Segundo, el presidente estadounidense Donald Trump anunció el 1 de febrero de 2025 aranceles de 25% a productos mexicanos, que entraron en vigor el 4 de marzo de 2025; el peso se depreció, la BMV extendió su racha de pérdidas y Moody's Analytics estimó un costo cercano a 1 punto porcentual del PIB de México para 2025 por esta causa —congruente con el crecimiento de apenas 0.6% que finalmente registró la economía mexicana ese año—. BBAJIO llegó a un mínimo de 52 semanas de $41.65 (Investing.com) hacia marzo de 2025, con una caída acumulada de -26.4% desde el choque electoral de 2024.</p>
+</div>
+
+<div class="period-card">
+<h4>P7 · Recuperación y transición de director general <span class="period-tag">mar. 2025 – sep. 2026</span></h4>
+<p>A partir de abril de 2025 la acción inicia una recuperación gradual (+37.6% hasta septiembre de 2026) conforme el mercado absorbe el choque arancelario inicial y los resultados del banco se estabilizan. El evento más relevante de este tramo se aborda con detalle en la sección 5: la salida de Edgardo del Rincón Gutiérrez —director general desde 2019— hacia Banamex, y su reemplazo por Iván Lomelí León a partir del 1 de mayo de 2026.</p>
+</div>
+
+<h2 id="pib">4. Relación con el entorno económico</h2>
+<p>La Gráfica 2 combina el rendimiento anual de BBAJIO con la tasa de crecimiento real anual del PIB de México (cifras del INEGI, 2017–2025).</p>
+
+<div class="chart">
+<svg viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg">
+<style>
+.axis{font:11px Arial,sans-serif;fill:#475569}
+.grid{stroke:#e2e8f0;stroke-width:1}
+</style>
+<line x1="55" y1="310.0" x2="880" y2="310.0" class="grid"/><text x="46" y="314.0" text-anchor="end" class="axis">-20%</text><line x1="55" y1="252.0" x2="880" y2="252.0" class="grid"/><text x="46" y="256.0" text-anchor="end" class="axis">0%</text><line x1="55" y1="194.0" x2="880" y2="194.0" class="grid"/><text x="46" y="198.0" text-anchor="end" class="axis">20%</text><line x1="55" y1="136.0" x2="880" y2="136.0" class="grid"/><text x="46" y="140.0" text-anchor="end" class="axis">40%</text><line x1="55" y1="78.0" x2="880" y2="78.0" class="grid"/><text x="46" y="82.0" text-anchor="end" class="axis">60%</text><line x1="55" y1="20.0" x2="880" y2="20.0" class="grid"/><text x="46" y="24.0" text-anchor="end" class="axis">80%</text>
+<rect x="60.5" y="212.9" width="31.2" height="39.1" fill="#1d4ed8"/><rect x="94.7" y="245.9" width="31.2" height="6.1" fill="#0f766e"/><rect x="152.2" y="252.0" width="31.2" height="41.6" fill="#1d4ed8"/><rect x="186.3" y="245.9" width="31.2" height="6.1" fill="#0f766e"/><rect x="243.8" y="226.2" width="31.2" height="25.8" fill="#1d4ed8"/><rect x="278.0" y="252.0" width="31.2" height="1.0" fill="#0f766e"/><rect x="335.5" y="252.0" width="31.2" height="32.5" fill="#1d4ed8"/><rect x="369.7" y="252.0" width="31.2" height="23.8" fill="#0f766e"/><rect x="427.2" y="161.0" width="31.2" height="91.0" fill="#1d4ed8"/><rect x="461.3" y="234.3" width="31.2" height="17.7" fill="#0f766e"/><rect x="518.8" y="44.6" width="31.2" height="207.4" fill="#1d4ed8"/><rect x="553.0" y="240.7" width="31.2" height="11.3" fill="#0f766e"/><rect x="610.5" y="252.0" width="31.2" height="23.2" fill="#1d4ed8"/><rect x="644.7" y="242.7" width="31.2" height="9.3" fill="#0f766e"/><rect x="702.2" y="252.0" width="31.2" height="39.3" fill="#1d4ed8"/><rect x="736.3" y="248.5" width="31.2" height="3.5" fill="#0f766e"/><rect x="793.8" y="236.8" width="31.2" height="15.2" fill="#1d4ed8"/><rect x="828.0" y="250.3" width="31.2" height="1.7" fill="#0f766e"/>
+<line x1="55" y1="252.0" x2="880" y2="252.0" stroke="#94a3b8"/>
+<text x="100.8" y="330" text-anchor="middle" class="axis">2017</text><text x="192.5" y="330" text-anchor="middle" class="axis">2018</text><text x="284.2" y="330" text-anchor="middle" class="axis">2019</text><text x="375.8" y="330" text-anchor="middle" class="axis">2020</text><text x="467.5" y="330" text-anchor="middle" class="axis">2021</text><text x="559.2" y="330" text-anchor="middle" class="axis">2022</text><text x="650.8" y="330" text-anchor="middle" class="axis">2023</text><text x="742.5" y="330" text-anchor="middle" class="axis">2024</text><text x="834.2" y="330" text-anchor="middle" class="axis">2025</text>
+<rect x="55" y="338" width="12" height="12" fill="#1d4ed8"/><text x="72" y="348" class="axis">Rendimiento anual BBAJIO (%)</text>
+<rect x="285" y="338" width="12" height="12" fill="#0f766e"/><text x="302" y="348" class="axis">Crecimiento del PIB de México (% real anual)</text>
+</svg>
+</div>
+
+<p>La correlación entre ambas series es de <strong>0.47</strong>: positiva, pero moderada. El activo <strong>no se mueve como un espejo del ciclo económico</strong>. Hay años en que ambos coinciden: 2020 (PIB y acción caen juntos por la pandemia) y 2021 (ambos se recuperan). Pero las divergencias son igual de reveladoras:</p>
+<ul>
+<li><strong>2019</strong> (PIB -0.3%, acción +8.9%): el programa de recompra de acciones de BanBajío —un factor específico de la empresa— sostuvo el precio pese a una economía en contracción.</li>
+<li><strong>2022</strong> (PIB +3.9%, acción +71.5%): la disparidad se explica porque el rendimiento de un banco depende del <strong>ciclo de tasas de interés</strong>, que no es lo mismo que el ciclo de crecimiento. Banxico subió agresivamente la tasa para combatir la inflación en un año en que el PIB crecía a un ritmo apenas moderado; para BanBajío, tasas más altas significan más margen financiero, independientemente de qué tan rápido crezca la economía.</li>
+<li><strong>2023</strong> (PIB +3.2%, fuerte; acción -8.0%): divergencia clara en sentido contrario. El precio ya había anticipado el pico de rentabilidad en enero y corrigió el resto del año pese a una economía que seguía creciendo con solidez.</li>
+<li><strong>2024</strong> (PIB +1.2%, acción -13.6%): aquí el signo coincide, pero el tamaño no: la caída de la acción fue impulsada principalmente por el choque electoral puntual del 3 de junio, no por la desaceleración gradual del PIB.</li>
+</ul>
+<p>La lectura de riesgo es la siguiente: <strong>el ciclo de tasas de interés de Banxico y los choques político-regulatorios explican mejor los movimientos de BBAJIO, periodo a periodo, que el crecimiento del PIB por sí solo</strong>, aunque ambos ciclos —tasas y crecimiento— suelen moverse juntos en el mediano plazo (Banxico sube tasas cuando la economía se recalienta y las baja cuando se enfría). Para un inversionista, esto significa que monitorear solo el PIB sería insuficiente para anticipar el comportamiento de esta acción; hace falta seguir también la política monetaria y el entorno político-regulatorio.</p>
+
+<h2 id="reciente">5. Análisis del periodo más reciente</h2>
+<p>En los últimos doce meses (septiembre de 2025 a septiembre de 2026) destacan tres desarrollos:</p>
+<h3>5.1 Continuación del ciclo de recortes de Banxico</h3>
+<p>Banxico continuó recortando gradualmente su tasa de referencia durante este periodo, extendiendo el ciclo iniciado en marzo de 2024. Como se documentó en la Parte 1, esto siguió presionando el margen de interés neto de BanBajío, que en el 4T25 se ubicó en 5.8% antes de reservas, 100 puntos base por debajo del año anterior. Este es el mismo mecanismo que explica buena parte de la corrección de 2024-2025 (periodo P6): tasas más bajas favorecen el crecimiento económico y el crédito, pero comprimen el margen de los bancos en el corto plazo.</p>
+<h3>5.2 Transición de director general (abril–mayo de 2026)</h3>
+<p>El 22 de abril de 2026 BanBajío anunció ante la BMV la salida de Edgardo del Rincón Gutiérrez, director general desde 2019, quien se incorporó a Banamex tras la salida de Manuel Romo de esa institución. El consejo confirmó a Iván Lomelí León como nuevo director general el 29 de abril, con entrada en funciones el 1 de mayo de 2026. Analistas de Goldman Sachs calificaron el cambio de "sorpresivo", y la acción retrocedió alrededor de -1% en los días posteriores al anuncio —una reacción moderada, coherente con que el mercado interpretó el relevo como un evento de gobierno corporativo y no como una señal de deterioro en los fundamentos del banco—. El 21 de mayo de 2026, Moody's ajustó las calificaciones de escala global de BanBajío, moviendo la perspectiva a estable, en línea con una acción similar sobre la calificación soberana de México, sin señales de preocupación específica sobre la institución.</p>
+<h3>5.3 Recuperación hacia máximos de 52 semanas</h3>
+<p>Hacia julio de 2026 la acción cotizaba entre $55 y $58, cerca de su máximo de 52 semanas ($59.54, Investing.com) y muy por encima de su mínimo de 52 semanas ($41.65, alcanzado durante el choque arancelario de marzo de 2025). Esta recuperación de +37.6% desde el valle de marzo de 2025 (periodo P7) sugiere que el mercado ha ido absorbiendo tanto el impacto arancelario inicial como la normalización de márgenes, sin que ninguno de los dos se haya traducido en un deterioro estructural de la calidad del banco.</p>
+
+<h2 id="conclusion">6. Conclusión integradora</h2>
+<p>La serie de precios de BBAJIO entre 2017 y 2026 cuenta una historia de crecimiento real pero profundamente accidentado: un rendimiento acumulado cercano a 95.5% (7.51% anual compuesto) que se logró atravesando una caída de -65.4% durante la pandemia, un rally de más de 460% en la recuperación posterior, y correcciones dobles de dos dígitos en 2018, 2023 y 2024. Los siete periodos identificados muestran que, casi sin excepción, los movimientos más fuertes del precio coinciden con eventos que ningún inversionista podía controlar ni anticipar con certeza: una elección y la cancelación de un aeropuerto (2018), una pandemia global (2020), un ciclo de tasas impulsado por inflación externa e interna (2021-2022), una elección con mayoría calificada (2024), y una decisión arancelaria de un gobierno extranjero (2025).</p>
+<p>La comparación con el PIB de México refuerza esta lectura: la correlación es positiva pero moderada (0.47), y las divergencias más marcadas —2019, 2022, 2023— se explican mejor por factores específicos del banco (recompras), por el ciclo de tasas de interés, o por el reajuste de expectativas del propio mercado, que por el ciclo de crecimiento económico general. Esto no significa que el entorno macroeconómico sea irrelevante —2020 y 2021 muestran que sí puede moverse en la misma dirección—, sino que para un banco específicamente, la política monetaria y los choques político-regulatorios son transmisores más directos de riesgo hacia el precio de la acción que el crecimiento del PIB por sí solo.</p>
+<p>Esto permite revisar la hipótesis planteada al final de la Parte 1. La idea de que BBAJIO sería <strong>"sensible a choques externos"</strong> se confirma con claridad: cada uno de los siete periodos identificados tiene un detonante externo verificable. Sin embargo, la idea de que esa sensibilidad se traduciría en una volatilidad <strong>"moderada"</strong> debe matizarse: con una volatilidad anualizada cercana a 35%, el comportamiento de BBAJIO es más volátil de lo que "moderado" sugiere, un rasgo típico de un banco regional de mediana capitalización y liquidez bursátil limitada, más expuesto a movimientos abruptos que un banco de mayor tamaño o un índice diversificado.</p>
+<p>La enseñanza central de este ejercicio, en términos de riesgo e incertidumbre, es que el precio de un activo financiero no es solo el reflejo mecánico de los resultados de una empresa: es también el resultado de cómo los inversionistas reciben y reaccionan ante información nueva, gran parte de la cual —el resultado de una elección, la aparición de una pandemia, la decisión arancelaria de un gobierno extranjero, incluso la salida de un director general— no puede preverse ni controlarse de antemano. Administrar el riesgo de un activo como BBAJIO no consiste en eliminar esta incertidumbre, algo imposible, sino en entender sus fuentes —crédito, tasas, entorno macroeconómico, riesgo político-regulatorio y gobierno corporativo, tal como se identificaron en la Parte 1— y reconocer que la magnitud de su impacto en el precio puede ser tan grande como la de los propios fundamentos del negocio.</p>
+
+<h2 id="referencias">7. Referencias</h2>
+<ol class="references">
+<li id="ref1">TradingView. (2026). <em>Banco del Bajío, S.A. (BMV: BBAJIO) — Datos históricos, máximo y mínimo histórico</em>. <a href="https://www.tradingview.com/symbols/BMV-BBAJIOO/" target="_blank">https://www.tradingview.com/symbols/BMV-BBAJIOO/</a></li>
+<li id="ref2">Rankia México. (2017). <em>Foro: Salida a bolsa de Banco del Bajío — precio de colocación</em>. <a href="https://www.rankia.mx/foros/bolsa-valores-mexico/temas/3684839-banco-bajio-bbajio" target="_blank">https://www.rankia.mx/foros/bolsa-valores-mexico/temas/3684839-banco-bajio-bbajio</a></li>
+<li id="ref3">Milenio. (2024). <em>BMV pierde 6.01%, la mayor caída desde marzo de 2020, por desplome de acciones de grupos financieros</em>. <a href="https://www.milenio.com/negocios/bmv-pierde-6-01-caida-desde-marzo-2020" target="_blank">https://www.milenio.com/negocios/bmv-pierde-6-01-caida-desde-marzo-2020</a></li>
+<li id="ref4">Bolsa Mexicana de Valores. (2026). <em>Eventos relevantes de BBAJIO — transición de director general</em>. <a href="https://www.bmv.com.mx/es/emisoras/eventosrelevantes/BBAJIO-31431-CGEN_CAPIT" target="_blank">https://www.bmv.com.mx/es/emisoras/eventosrelevantes/BBAJIO-31431-CGEN_CAPIT</a></li>
+<li id="ref5">Expansión. (2026). <em>BanBajío nombra a Iván Lomelí León como nuevo director general</em>. <a href="https://expansion.mx/empresas" target="_blank">https://expansion.mx/empresas</a></li>
+<li id="ref6">Instituto Nacional de Estadística y Geografía (INEGI). (2018-2026). <em>Producto Interno Bruto de México, variación porcentual real anual, comunicados de prensa 2017-2025</em>. <a href="https://www.inegi.org.mx/temas/pib/" target="_blank">https://www.inegi.org.mx/temas/pib/</a></li>
+<li id="ref7">Banco de México / Centro de Estudios de las Finanzas Públicas (CEFP), Cámara de Diputados. (2019-2024). <em>Tipo de cambio FIX, serie histórica</em>. <a href="https://www.banxico.org.mx/tipcamb/main.do" target="_blank">https://www.banxico.org.mx/tipcamb/main.do</a></li>
+<li id="ref8">Digrin.com. (2026). <em>Banco del Bajío (BBAJF) — Historial de precio mensual, mercado OTC</em>. <a href="https://www.digrin.com/stocks/detail/BBAJF/price" target="_blank">https://www.digrin.com/stocks/detail/BBAJF/price</a></li>
+<li id="ref9">Investing.com México. (2026). <em>Banco del Bajío — Datos históricos, rango de 52 semanas</em>. <a href="https://mx.investing.com/equities/banco-del-bajio-sa-historical-data" target="_blank">https://mx.investing.com/equities/banco-del-bajio-sa-historical-data</a></li>
+<li id="ref10">BBVA Research. (2025). <em>Aranceles de Estados Unidos a México: impacto estimado</em>. <a href="https://www.bbvaresearch.com/publicaciones/" target="_blank">https://www.bbvaresearch.com/publicaciones/</a></li>
+<li id="ref11">Banco de México. (2021-2024). <em>Anuncios de política monetaria — historial de la Tasa de Interés Interbancaria a un día</em>. <a href="https://www.banxico.org.mx/publicaciones-y-prensa/anuncios-de-las-decisiones-de-politica-monetaria/" target="_blank">https://www.banxico.org.mx/publicaciones-y-prensa/anuncios-de-las-decisiones-de-politica-monetaria/</a></li>
+<li id="ref12">Comisión Nacional Bancaria y de Valores (CNBV) / Asociación de Bancos de México (ABM). (2020). <em>Programas de apoyo y diferimiento de pagos ante la contingencia por COVID-19</em>. <a href="https://www.gob.mx/cnbv" target="_blank">https://www.gob.mx/cnbv</a></li>
+<li id="ref13">Proyecto Final Parte 1 — Equipo 6. (2026). <em>Análisis del Riesgo: Banco del Bajío, descripción del negocio, estados financieros e indicadores</em>. Documento propio del equipo, ITESO.</li>
+</ol>
+
+<div class="footer">
+<p><strong>Nota metodológica general:</strong> Las cifras de precio de la acción se presentan en pesos mexicanos por título. La serie de precios combina datos verificados con fuente puntual y una serie reconstruida a partir de avisos de recompra ante la BMV y la cotización OTC de BBAJIO convertida con tipo de cambio histórico, tal como se documenta en el notebook de cálculos que acompaña este reporte. Las cifras de PIB corresponden a variación porcentual real anual según el INEGI.</p>
+<p>Proyecto Final Parte 2 — Análisis del Riesgo — Equipo 6 — Otoño 2026</p>
+</div>
+
+</div>
+</body>
+</html>
