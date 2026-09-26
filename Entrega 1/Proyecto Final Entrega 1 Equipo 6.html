@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proyecto Final Parte 1 | BanBajío | Equipo 6</title>
+<style>
+:root {
+  --navy:#12344d; --blue:#1d4ed8; --light:#f5f8fb; --line:#dbe4ec;
+  --text:#1f2937; --muted:#64748b; --green:#0f766e; --amber:#92400e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eef3f7;color:var(--text);font-family:Arial,Helvetica,sans-serif;line-height:1.58}
+.container{max-width:1040px;margin:36px auto;background:#fff;padding:54px 68px;box-shadow:0 8px 28px rgba(15,23,42,.08)}
+.cover{text-align:center;padding:72px 10px 90px;border-bottom:2px solid var(--line)}
+.cover .school{font-weight:700;letter-spacing:.03em;color:var(--navy);font-size:.95rem}
+.cover h1{font-size:2.35rem;margin:56px 0 2px;color:#111827}
+.cover h2{font-size:1.5rem;font-weight:400;margin:0;color:#334155}
+.authors{margin-top:58px}
+.term{margin-top:68px;font-weight:700}
+h2{color:var(--navy);margin-top:46px;padding-bottom:9px;border-bottom:2px solid var(--line)}
+h3{color:#234b68;margin-top:29px}
+h4{color:#334155;margin:24px 0 8px}
+p{text-align:justify;margin:0 0 14px}
+a{color:#174ea6}
+sup a{text-decoration:none;font-weight:700}
+.toc,.note,.method,.result{background:var(--light);border:1px solid var(--line);border-radius:8px;padding:18px 22px;margin:20px 0}
+.toc a{text-decoration:none;color:var(--navy)}
+.method{border-left:5px solid var(--blue)}
+.note{border-left:5px solid #d97706}
+.result{border-left:5px solid var(--green)}
+.formula{font-family:"Cambria Math","Times New Roman",serif;text-align:center;font-size:1.08rem;background:#f8fafc;padding:10px 12px;margin:10px 0;border-radius:6px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.78rem;font-weight:700;margin-left:6px}
+.reported{background:#dcfce7;color:#166534}
+.constructed{background:#dbeafe;color:#1e40af}
+.proxy{background:#fef3c7;color:#92400e}
+.table-wrap{overflow-x:auto;margin:17px 0 23px}
+table{width:100%;border-collapse:collapse;font-size:.91rem}
+th{background:var(--navy);color:#fff;text-align:left;padding:9px 10px;vertical-align:bottom}
+td{border-bottom:1px solid #e2e8f0;padding:8px 10px;vertical-align:top}
+tbody tr:nth-child(even){background:#f8fafc}
+.num{text-align:right;white-space:nowrap}
+.small{font-size:.88rem;color:var(--muted)}
+.chart{border:1px solid var(--line);border-radius:8px;padding:12px;margin:18px 0 24px}
+.references li{margin-bottom:10px}
+.risk-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0}
+.risk-card{border:1px solid var(--line);border-radius:8px;padding:15px;background:#fbfdff}
+.risk-card strong{color:var(--navy)}
+.footer{border-top:1px solid var(--line);margin-top:55px;padding-top:18px;color:var(--muted);font-size:.86rem}
+@media(max-width:760px){.container{margin:0;padding:28px 18px}.risk-grid{grid-template-columns:1fr}}
+@media print{body{background:#fff}.container{box-shadow:none;margin:0;max-width:none;padding:30px}a{color:#000;text-decoration:none}}
+</style>
+</head>
+<body>
+<div class="container">
+
+<section class="cover">
+  <div class="school">INSTITUTO TECNOLÓGICO Y DE ESTUDIOS SUPERIORES DE OCCIDENTE</div>
+  <h1>Análisis del Riesgo</h1>
+  <h2>Proyecto Final — Parte 1</h2>
+  <p style="text-align:center;margin-top:16px"><strong>Activo analizado:</strong> Banco del Bajío, S.A., Institución de Banca Múltiple (BBAJIO)</p>
+  <div class="authors">
+    <strong>Presenta</strong><br>
+    Alan Jesús Hernández Soto (752714)<br>
+    Jeronimo Rojas Alvarado (731609)<br>
+    Francisco Josué Ramírez Avila (747819)<br>
+    JP Mendez
+  </div>
+  <div class="term">Otoño 2026</div>
+</section>
+
+<div class="toc">
+<strong>Contenido</strong>
+<ol>
+<li><a href="#intro">Introducción</a></li>
+<li><a href="#descripcion">Descripción general del activo y del negocio</a></li>
+<li><a href="#estados">Análisis de estados financieros</a></li>
+<li><a href="#indicadores">Indicadores financieros clave</a></li>
+<li><a href="#eps">Cálculo del EPS trimestral 2019–2025</a></li>
+<li><a href="#dividendos">Dividendos y split</a></li>
+<li><a href="#riesgos">Identificación y análisis de riesgos</a></li>
+<li><a href="#conclusion">Conclusión</a></li>
+<li><a href="#referencias">Referencias</a></li>
+</ol>
+</div>
+
+<h2 id="intro">1. Introducción</h2>
+<p>En esta primera parte del proyecto analizamos a Banco del Bajío (BanBajío) antes de pasar a los modelos cuantitativos de riesgo. El objetivo es entender qué tipo de banco es, qué tan grande es su operación, de dónde provienen sus resultados, cómo ha cambiado su rentabilidad y cuáles son los riesgos que podrían terminar reflejándose en el precio de la acción BBAJIO. Para ello se revisan fuentes públicas de BanBajío y de la Bolsa Mexicana de Valores (BMV), se reconstruyen algunos indicadores cuando no son reportados directamente y se distingue de forma explícita entre cifras oficiales e indicadores elaborados por el equipo.</p>
+
+<h2 id="descripcion">2. Descripción general del activo y del negocio</h2>
+<p>Banco del Bajío, S.A., Institución de Banca Múltiple inició operaciones en 1994 en León, Guanajuato, y cotiza en la Bolsa Mexicana de Valores desde el 8 de junio de 2017 con la clave BBAJIO. Su enfoque histórico ha sido el financiamiento empresarial, incluyendo agronegocios y pequeñas y medianas empresas, además de productos de banca comercial para personas. La BMV lo clasifica dentro del sector de servicios financieros, subsector entidades financieras y ramo de bancos comerciales.<sup><a href="#ref1">[1]</a></sup></p>
+
+<p>El banco divide su operación principalmente entre Banca Empresarial y Banca Comercial. Su oferta incluye cuentas de depósito, créditos empresariales y PYME, factoraje, arrendamiento, tarjetas, crédito hipotecario y automotriz, inversiones, divisas, seguros y servicios digitales como BajioNet. Esta mezcla ayuda a diversificar ingresos, pero el crédito empresarial continúa siendo el centro del modelo de negocio.</p>
+
+<p>La escala del banco se entiende mejor con cifras. Al cierre de 2024 reportó activos por aproximadamente <strong>$363,467 millones</strong>, cartera de crédito por <strong>$266,057 millones</strong>, captación por <strong>$247,150 millones</strong> y más de <strong>1.1 millones de clientes</strong>. El 90.6% de su cartera correspondía a empresas, PYMES y entidades financieras. También operaba 324 sucursales y 803 cajeros propios, complementados con una red en alianza de más de 16,500 cajeros.<sup><a href="#ref4">[4]</a></sup> Para 2026, la BMV ya reportaba más de 330 sucursales y señalaba que BanBajío era el tercer banco más grande en activos entre los no afiliados a un banco extranjero, quinto en cartera empresarial, octavo en colocación y noveno en captación, con base en información de la CNBV a febrero de 2026.<sup><a href="#ref1">[1]</a></sup></p>
+
+<p>Su relevancia económica está precisamente en esa especialización empresarial. BanBajío compite con bancos de mayor escala nacional, pero su posición en cartera empresarial muestra que participa de forma relevante en el financiamiento productivo. Esto también genera una concentración que será importante para el análisis de riesgo: cuando las empresas mexicanas enfrentan menor crecimiento, menor liquidez o mayores tasas de incumplimiento, el impacto puede transmitirse directamente a la calidad de la cartera del banco.</p>
+
+<p>Entre los eventos recientes destaca el cambio de dirección general en 2026. La BMV registró la transición y la posterior confirmación de Iván Lomelí León como director general.<sup><a href="#ref2">[2]</a></sup> El cambio ocurre en un periodo en el que la rentabilidad del sector se ha ajustado por la disminución de las tasas de referencia. Por eso, además del crecimiento de cartera, la eficiencia, la calidad crediticia y la capacidad de mantener margen financiero son elementos centrales para evaluar la etapa actual del banco.</p>
+
+<h2 id="estados">3. Análisis de estados financieros</h2>
+
+<div class="method">
+<strong>Criterio de trazabilidad.</strong> En una institución bancaria no existe “venta” y “costo de ventas” en el mismo sentido que en una empresa industrial. Por esa razón, en esta sección primero se presentan partidas oficiales del estado de resultados y después se construyen tres márgenes comparables. Cada indicador construido se identifica expresamente para no confundirlo con una razón publicada por BanBajío.
+</div>
+
+<h3>3.1 Evolución 2023–2025</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Concepto (millones de MXN)</th><th class="num">2023</th><th class="num">2024*</th><th class="num">2025</th><th>Lectura financiera</th></tr></thead>
+<tbody>
+<tr><td>Ingresos por intereses <span class="badge reported">reportado</span></td><td class="num">39,938</td><td class="num">42,901</td><td class="num">39,496</td><td>Subieron en 2024 y cayeron en 2025, consistente con un entorno de tasas más bajas.</td></tr>
+<tr><td>Margen financiero <span class="badge reported">reportado</span></td><td class="num">22,179</td><td class="num">22,812</td><td class="num">21,529</td><td>Se mantuvo alto, pero perdió fuerza en 2025.</td></tr>
+<tr><td>Resultado de operación <span class="badge reported">reportado</span></td><td class="num">15,061</td><td class="num">14,574</td><td class="num">12,406</td><td>La caída es más fuerte que la del margen financiero, señal de presión por gastos y provisiones.</td></tr>
+<tr><td>Resultado neto <span class="badge reported">reportado</span></td><td class="num">11,013</td><td class="num">10,689</td><td class="num">9,079</td><td>La utilidad se contrajo 17.6% entre 2023 y 2025.</td></tr>
+</tbody>
+</table>
+</div>
+<p class="small">*Las cifras 2024 se presentan con la reclasificación comparable incluida en el reporte 4T25. Fuentes: Reporte Anual 2023 y reporte BMV 4T25.<sup><a href="#ref3">[3]</a></sup><sup><a href="#ref5">[5]</a></sup></p>
+
+<h3>3.2 Construcción de los márgenes</h3>
+
+<h4>Margen bruto bancario equivalente <span class="badge constructed">construido</span></h4>
+<p>Para un banco, la aproximación más cercana a un margen bruto consiste en observar qué proporción de los ingresos por intereses permanece después del costo por intereses del fondeo. Por eso utilizamos:</p>
+<div class="formula">Margen bruto bancario = Margen financiero ÷ Ingresos por intereses × 100</div>
+<p>Ejemplo 2025:</p>
+<div class="formula">21,529 ÷ 39,496 × 100 = <strong>54.51%</strong></div>
+
+<h4>Margen operativo <span class="badge constructed">construido</span></h4>
+<p>Para evitar mezclar ingresos financieros con una definición industrial, se construye primero un ingreso operativo bancario:</p>
+<div class="formula">Ingreso operativo bancario = Margen financiero + Comisiones netas + Resultado por intermediación + Otros ingresos (egresos) de operación</div>
+<p>En 2025: 21,529 + (5,265 − 2,238) + 1,165 − 756 = <strong>$24,965 millones</strong>.</p>
+<div class="formula">Margen operativo = Resultado de operación ÷ Ingreso operativo bancario × 100</div>
+<div class="formula">12,406 ÷ 24,965 × 100 = <strong>49.69%</strong></div>
+
+<h4>Margen neto <span class="badge constructed">construido</span></h4>
+<div class="formula">Margen neto = Resultado neto ÷ Ingreso operativo bancario × 100</div>
+<div class="formula">9,079 ÷ 24,965 × 100 = <strong>36.37%</strong></div>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Margen construido</th><th class="num">2023</th><th class="num">2024</th><th class="num">2025</th></tr></thead>
+<tbody>
+<tr><td>Margen bruto bancario</td><td class="num">55.53%</td><td class="num">53.17%</td><td class="num">54.51%</td></tr>
+<tr><td>Margen operativo</td><td class="num">60.50%</td><td class="num">56.05%</td><td class="num">49.69%</td></tr>
+<tr><td>Margen neto</td><td class="num">44.24%</td><td class="num">41.11%</td><td class="num">36.37%</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>La lectura conjunta es más importante que cualquiera de los porcentajes por separado. El margen bruto bancario se mantuvo relativamente estable, mientras que el margen operativo y el margen neto disminuyeron de forma clara. Esto muestra que la presión de rentabilidad de 2025 no se explica solamente por el costo del fondeo: también influyeron las estimaciones por riesgo de crédito y los gastos de administración. De hecho, el reporte 4T25 muestra gastos de administración y promoción por $9,933 millones y estimaciones preventivas por $2,626 millones en el año.<sup><a href="#ref5">[5]</a></sup></p>
+
+<h3>3.3 Endeudamiento y estructura de capital</h3>
+<p>En un banco, los depósitos de los clientes forman parte natural del proceso de intermediación. Por ello no es correcto interpretar todo el pasivo como si fuera “deuda corporativa” tradicional. Al cierre de 2025, BanBajío tenía captación por $273,034 millones y un fondeo compuesto principalmente por depósitos a la vista y a plazo; los préstamos interbancarios representaban 16.0% del fondeo y los reportos 1.7%.<sup><a href="#ref5">[5]</a></sup></p>
+
+<p>Para evaluar la solvencia conviene acompañar el apalancamiento con indicadores regulatorios. El ICAP sobre riesgos totales fue de <strong>15.46%</strong> al cierre de 2025 y la razón regulatoria de apalancamiento reportada por el banco fue de <strong>10.66%</strong>.<sup><a href="#ref5">[5]</a></sup> Esto ayuda a evitar una lectura equivocada de los depósitos como si fueran una señal automática de sobreendeudamiento.</p>
+
+<h2 id="indicadores">4. Indicadores financieros clave</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Indicador</th><th>Definición / fórmula</th><th class="num">Dato 2025</th><th>Interpretación para BanBajío</th></tr></thead>
+<tbody>
+<tr>
+<td><strong>ROE</strong> <span class="badge reported">reportado</span></td>
+<td>Rentabilidad generada sobre el capital promedio.</td>
+<td class="num"><strong>19.4%</strong></td>
+<td>El banco continúa generando una rentabilidad elevada sobre el capital, aunque menor que 24.6% en 2024 y 28.1% en 2023. La tendencia confirma una desaceleración de la rentabilidad.</td>
+</tr>
+<tr>
+<td><strong>ROA</strong> <span class="badge reported">reportado</span></td>
+<td>Utilidad generada respecto a los activos promedio.</td>
+<td class="num"><strong>2.4%</strong></td>
+<td>También descendió frente a 3.0% en 2024 y 3.4% en 2023, por lo que cada peso de activos está produciendo menos utilidad que en los dos años anteriores.</td>
+</tr>
+<tr>
+<td><strong>Deuda / Capital</strong> <span class="badge constructed">construido</span></td>
+<td>Préstamos interbancarios y de otros organismos ÷ Capital contable.</td>
+<td class="num"><strong>1.10x</strong></td>
+<td>Se usa una definición estricta de deuda financiera para no considerar los depósitos de clientes como deuda corporativa convencional. Cálculo: 52,917 ÷ 48,193.</td>
+</tr>
+<tr>
+<td><strong>Pasivo / Capital</strong> <span class="badge constructed">contexto</span></td>
+<td>Pasivo total ÷ Capital contable.</td>
+<td class="num"><strong>7.15x</strong></td>
+<td>Este es un indicador de apalancamiento contable, no de deuda financiera. Incluye depósitos y por eso es naturalmente alto en un banco. Cálculo: 344,554 ÷ 48,193.</td>
+</tr>
+<tr>
+<td><strong>Deuda / EBITDA</strong> <span class="badge proxy">proxy</span></td>
+<td>Deuda financiera estricta ÷ EBITDA proxy. EBITDA proxy = Resultado de operación + depreciación y amortización.</td>
+<td class="num"><strong>3.96x</strong></td>
+<td>Se incluye porque lo solicita la actividad, pero no es una razón estándar para bancos: los intereses son parte del negocio operativo. EBITDA proxy 2025 = 12,406 + 947 = 13,353 millones; 52,917 ÷ 13,353 = 3.96x.</td>
+</tr>
+<tr>
+<td><strong>Margen EBITDA</strong> <span class="badge proxy">proxy</span></td>
+<td>EBITDA proxy ÷ Ingreso operativo bancario.</td>
+<td class="num"><strong>53.49%</strong></td>
+<td>13,353 ÷ 24,965. Debe interpretarse con cautela por la misma limitación anterior; para un banco son más informativos el margen financiero, MIN, ROE, ROA, eficiencia e ICAP.</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+<strong>Importante:</strong> BanBajío no publica “Deuda/EBITDA” ni “Margen EBITDA” como indicadores bancarios estándar. Las dos últimas métricas son proxies construidos únicamente para responder al requerimiento académico. La interpretación principal del riesgo financiero se apoya en indicadores propios del sector bancario, como ROE, ROA, MIN, eficiencia, calidad de cartera e ICAP.
+</div>
+
+<p>En conjunto, los indicadores muestran un banco rentable y bien capitalizado, pero con una tendencia descendente en rentabilidad. En 2025 el ROE bajó a 19.4% y el ROA a 2.4%; el índice de eficiencia de 12 meses fue 39.8%, el ICAP 15.46% y la cartera etapa 3 representó 1.5% de la cartera total.<sup><a href="#ref5">[5]</a></sup> La lectura no es de deterioro severo, sino de una normalización respecto a los años de mayor rentabilidad.</p>
+
+<h2 id="eps">5. Cálculo del EPS trimestral 2019–2025</h2>
+
+<h3>5.1 Método de cálculo</h3>
+<p>El EPS (Earnings Per Share o utilidad por acción) indica cuánta utilidad corresponde a cada acción. El criterio contable utiliza la utilidad atribuible a los accionistas y el promedio ponderado de acciones en circulación. BanBajío señala en sus reportes que la utilidad básica por acción se obtiene a partir del resultado neto atribuible y el promedio ponderado de acciones; además, no reporta instrumentos dilutivos relevantes en los periodos revisados.<sup><a href="#ref3">[3]</a></sup></p>
+
+<div class="formula">EPS trimestral = Utilidad neta del trimestre ÷ Promedio ponderado de acciones en circulación</div>
+
+<p>Para hacer homogénea la serie se utiliza como denominador <strong>1,189.931687 millones de acciones Serie O</strong>, número de acciones en circulación que se mantuvo estable durante el periodo analizado según los reportes corporativos. Por ejemplo, para Q1 2025:</p>
+<div class="formula">EPS Q1 2025 = $2,491 millones ÷ 1,189.931687 millones = <strong>$2.0934 por acción</strong></div>
+<p>Para Q2 2025:</p>
+<div class="formula">EPS Q2 2025 = $2,166 millones ÷ 1,189.931687 millones = <strong>$1.8203 por acción</strong></div>
+
+<div class="note">
+Los EPS de la tabla son <strong>cálculos trimestrales del equipo</strong> a partir de la utilidad neta reportada en cada trimestre. El EPS anual oficial puede diferir por centavos debido al uso contable del promedio ponderado, ajustes de cierre o reclasificaciones. Por ejemplo, BanBajío reportó oficialmente un EPS básico acumulado de 7.6325 pesos en 2025, mientras que la suma de los cuatro EPS trimestrales reconstruidos es aproximadamente 7.6298 pesos.<sup><a href="#ref5">[5]</a></sup>
+</div>
+
+<h3>5.2 Serie completa</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>Año</th><th>Trimestre</th><th class="num">Utilidad neta (millones MXN)</th><th class="num">Acciones (millones)</th><th class="num">EPS calculado (MXN/acción)</th></tr>
+</thead>
+<tbody>
+<tr><td>2019</td><td>Q1</td><td>1,410</td><td>1,189.932</td><td><strong>1.1849</strong></td></tr>
+<tr><td>2019</td><td>Q2</td><td>1,412</td><td>1,189.932</td><td><strong>1.1866</strong></td></tr>
+<tr><td>2019</td><td>Q3</td><td>1,389</td><td>1,189.932</td><td><strong>1.1673</strong></td></tr>
+<tr><td>2019</td><td>Q4</td><td>1,402</td><td>1,189.932</td><td><strong>1.1782</strong></td></tr>
+<tr><td>2020</td><td>Q1</td><td>1,238</td><td>1,189.932</td><td><strong>1.0404</strong></td></tr>
+<tr><td>2020</td><td>Q2</td><td>705</td><td>1,189.932</td><td><strong>0.5925</strong></td></tr>
+<tr><td>2020</td><td>Q3</td><td>759</td><td>1,189.932</td><td><strong>0.6379</strong></td></tr>
+<tr><td>2020</td><td>Q4</td><td>735</td><td>1,189.932</td><td><strong>0.6177</strong></td></tr>
+<tr><td>2021</td><td>Q1</td><td>945</td><td>1,189.932</td><td><strong>0.7942</strong></td></tr>
+<tr><td>2021</td><td>Q2</td><td>1,070</td><td>1,189.932</td><td><strong>0.8992</strong></td></tr>
+<tr><td>2021</td><td>Q3</td><td>1,250</td><td>1,189.932</td><td><strong>1.0505</strong></td></tr>
+<tr><td>2021</td><td>Q4</td><td>1,549</td><td>1,189.932</td><td><strong>1.3018</strong></td></tr>
+<tr><td>2022</td><td>Q1</td><td>1,526</td><td>1,189.932</td><td><strong>1.2824</strong></td></tr>
+<tr><td>2022</td><td>Q2</td><td>1,811</td><td>1,189.932</td><td><strong>1.5219</strong></td></tr>
+<tr><td>2022</td><td>Q3</td><td>2,109</td><td>1,189.932</td><td><strong>1.7724</strong></td></tr>
+<tr><td>2022</td><td>Q4</td><td>2,626</td><td>1,189.932</td><td><strong>2.2068</strong></td></tr>
+<tr><td>2023</td><td>Q1</td><td>2,691</td><td>1,189.932</td><td><strong>2.2615</strong></td></tr>
+<tr><td>2023</td><td>Q2</td><td>2,782</td><td>1,189.932</td><td><strong>2.3379</strong></td></tr>
+<tr><td>2023</td><td>Q3</td><td>2,755</td><td>1,189.932</td><td><strong>2.3153</strong></td></tr>
+<tr><td>2023</td><td>Q4</td><td>2,785</td><td>1,189.932</td><td><strong>2.3405</strong></td></tr>
+<tr><td>2024</td><td>Q1</td><td>2,779</td><td>1,189.932</td><td><strong>2.3354</strong></td></tr>
+<tr><td>2024</td><td>Q2</td><td>2,847</td><td>1,189.932</td><td><strong>2.3926</strong></td></tr>
+<tr><td>2024</td><td>Q3</td><td>2,525</td><td>1,189.932</td><td><strong>2.1220</strong></td></tr>
+<tr><td>2024</td><td>Q4</td><td>2,538</td><td>1,189.932</td><td><strong>2.1329</strong></td></tr>
+<tr><td>2025</td><td>Q1</td><td>2,491</td><td>1,189.932</td><td><strong>2.0934</strong></td></tr>
+<tr><td>2025</td><td>Q2</td><td>2,166</td><td>1,189.932</td><td><strong>1.8203</strong></td></tr>
+<tr><td>2025</td><td>Q3</td><td>2,267</td><td>1,189.932</td><td><strong>1.9052</strong></td></tr>
+<tr><td>2025</td><td>Q4</td><td>2,155</td><td>1,189.932</td><td><strong>1.8110</strong></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="chart">
+<svg viewBox="0 0 900 310" role="img" aria-label="Evolución trimestral del EPS 2019 a 2025">
+<style>
+.axis{font:12px Arial,sans-serif;fill:#475569}
+.grid{stroke:#e2e8f0;stroke-width:1}
+.line{fill:none;stroke:#1d4ed8;stroke-width:3}
+.dot{fill:#fff;stroke:#1d4ed8;stroke-width:2}
+</style>
+<line x1="55" y1="244.5" x2="880" y2="244.5" class="grid"/><text x="46" y="248.5" text-anchor="end" class="axis">0.5</text><line x1="55" y1="192.3" x2="880" y2="192.3" class="grid"/><text x="46" y="196.3" text-anchor="end" class="axis">1.0</text><line x1="55" y1="140.0" x2="880" y2="140.0" class="grid"/><text x="46" y="144.0" text-anchor="end" class="axis">1.5</text><line x1="55" y1="87.7" x2="880" y2="87.7" class="grid"/><text x="46" y="91.7" text-anchor="end" class="axis">2.0</text><line x1="55" y1="35.5" x2="880" y2="35.5" class="grid"/><text x="46" y="39.5" text-anchor="end" class="axis">2.5</text>
+<line x1="55" y1="255" x2="880" y2="255" stroke="#94a3b8"/>
+<path d="M55.0,172.9 L85.6,172.8 L116.1,174.8 L146.7,173.6 L177.2,188.0 L207.8,234.9 L238.3,230.1 L268.9,232.2 L299.4,213.8 L330.0,202.8 L360.6,187.0 L391.1,160.7 L421.7,162.7 L452.2,137.7 L482.8,111.5 L513.3,66.1 L543.9,60.4 L574.4,52.4 L605.0,54.8 L635.6,52.1 L666.1,52.7 L696.7,46.7 L727.2,75.0 L757.8,73.8 L788.3,78.0 L818.9,106.5 L849.4,97.6 L880.0,107.5" class="line"/>
+<circle cx="55.0" cy="172.9" r="3.6" class="dot"/><circle cx="85.6" cy="172.8" r="3.6" class="dot"/><circle cx="116.1" cy="174.8" r="3.6" class="dot"/><circle cx="146.7" cy="173.6" r="3.6" class="dot"/><circle cx="177.2" cy="188.0" r="3.6" class="dot"/><circle cx="207.8" cy="234.9" r="3.6" class="dot"/><circle cx="238.3" cy="230.1" r="3.6" class="dot"/><circle cx="268.9" cy="232.2" r="3.6" class="dot"/><circle cx="299.4" cy="213.8" r="3.6" class="dot"/><circle cx="330.0" cy="202.8" r="3.6" class="dot"/><circle cx="360.6" cy="187.0" r="3.6" class="dot"/><circle cx="391.1" cy="160.7" r="3.6" class="dot"/><circle cx="421.7" cy="162.7" r="3.6" class="dot"/><circle cx="452.2" cy="137.7" r="3.6" class="dot"/><circle cx="482.8" cy="111.5" r="3.6" class="dot"/><circle cx="513.3" cy="66.1" r="3.6" class="dot"/><circle cx="543.9" cy="60.4" r="3.6" class="dot"/><circle cx="574.4" cy="52.4" r="3.6" class="dot"/><circle cx="605.0" cy="54.8" r="3.6" class="dot"/><circle cx="635.6" cy="52.1" r="3.6" class="dot"/><circle cx="666.1" cy="52.7" r="3.6" class="dot"/><circle cx="696.7" cy="46.7" r="3.6" class="dot"/><circle cx="727.2" cy="75.0" r="3.6" class="dot"/><circle cx="757.8" cy="73.8" r="3.6" class="dot"/><circle cx="788.3" cy="78.0" r="3.6" class="dot"/><circle cx="818.9" cy="106.5" r="3.6" class="dot"/><circle cx="849.4" cy="97.6" r="3.6" class="dot"/><circle cx="880.0" cy="107.5" r="3.6" class="dot"/>
+<text x="55.0" y="292" text-anchor="middle" class="axis">2019</text><text x="177.2" y="292" text-anchor="middle" class="axis">2020</text><text x="299.4" y="292" text-anchor="middle" class="axis">2021</text><text x="421.7" y="292" text-anchor="middle" class="axis">2022</text><text x="543.9" y="292" text-anchor="middle" class="axis">2023</text><text x="666.1" y="292" text-anchor="middle" class="axis">2024</text><text x="788.3" y="292" text-anchor="middle" class="axis">2025</text>
+<text x="18" y="155.0" transform="rotate(-90 18 155.0)" text-anchor="middle" class="axis">EPS (pesos por acción)</text>
+</svg>
+</div>
+
+<h3>5.3 Trazabilidad de la serie EPS</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Periodo</th><th>Fuente documental utilizada</th><th>Observación</th></tr></thead>
+<tbody>
+<tr><td>2019</td><td>Reportes trimestrales y Reporte Anual 2019 de BanBajío.<sup><a href="#ref7">[7]</a></sup></td><td>La suma de cifras trimestrales no auditadas puede diferir ligeramente del total anual auditado por ajustes de cierre.</td></tr>
+<tr><td>2020–2021</td><td>Reportes trimestrales históricos de BanBajío, disponibles en Relación con Inversionistas y BMV.<sup><a href="#ref6">[6]</a></sup></td><td>Se conserva la utilidad neta reportada para cada trimestre.</td></tr>
+<tr><td>2022</td><td>Reporte Anual 2022 y reportes trimestrales de BanBajío.<sup><a href="#ref8">[8]</a></sup></td><td>La utilidad anual de $8,072 millones reconcilia con los cuatro trimestres.</td></tr>
+<tr><td>2023</td><td>Reporte Anual 2023.<sup><a href="#ref3">[3]</a></sup></td><td>Se usa la cifra de Q4 que reconcilia con el resultado anual auditado de $11,013 millones.</td></tr>
+<tr><td>2024</td><td>Comparativos reclasificados incluidos en los reportes 2025 y el Informe Integrado 2024.<sup><a href="#ref4">[4]</a></sup><sup><a href="#ref5">[5]</a></sup></td><td>Se privilegian los datos comparables/reclasificados más recientes.</td></tr>
+<tr><td>2025</td><td>Reporte BMV 2T25 y reporte BMV 4T25.<sup><a href="#ref5">[5]</a></sup><sup><a href="#ref9">[9]</a></sup></td><td>Q1 = 2,491; Q2 = 2,166; Q3 = 2,267; Q4 = 2,155 millones.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>5.4 Interpretación del EPS</h3>
+<p>La serie muestra tres etapas claras. Primero, en 2020 la utilidad por acción cayó de manera importante: el EPS pasó de niveles cercanos a $1.18 por trimestre en 2019 a un mínimo cercano a $0.59 en Q2 2020, coincidiendo con la pandemia y un entorno de mayor cautela crediticia. Segundo, entre 2021 y 2023 la rentabilidad por acción se recuperó de forma sostenida hasta superar $2.30 por trimestre en varios periodos de 2023. Tercero, durante 2024 y 2025 el EPS comenzó a moderarse; en 2025 pasó de $2.0934 en Q1 a $1.8110 en Q4.</p>
+
+<p>La disminución reciente es consistente con la normalización de tasas y la compresión del margen de interés neto. En el 4T25 el MIN antes de reservas fue 5.8%, 100 puntos base menor que un año antes, y BanBajío atribuyó la contracción a los ajustes a la baja de la tasa de referencia.<sup><a href="#ref5">[5]</a></sup> Por lo tanto, el EPS ha sido relativamente estable en términos de que se mantuvo positivo en los 28 trimestres, pero no es constante: responde al ciclo económico, al costo de riesgo y al entorno de tasas.</p>
+
+<h2 id="dividendos">6. Dividendos y split</h2>
+<p>BanBajío mantiene una política de distribución de dividendos que se ajusta a la utilidad y a las necesidades de capital de cada ejercicio. En 2023 se destinó a dividendos 60% de la utilidad de 2022; en 2024 la proporción aprobada fue menor, y para 2025 la Asamblea aprobó distribuir 50% de la utilidad de 2024, aproximadamente $5,344 millones. El pago se dividió en dos exhibiciones. Para 2026 se aprobó nuevamente distribuir 50% de la utilidad de 2025, equivalente a aproximadamente $4,538 millones.<sup><a href="#ref10">[10]</a></sup><sup><a href="#ref11">[11]</a></sup></p>
+
+<p>La variación en la distribución no debe interpretarse de manera aislada. Para un banco, retener utilidades también fortalece el capital y la capacidad de absorber pérdidas o sostener crecimiento de cartera. Por eso, el análisis del dividendo debe hacerse junto con el ICAP, la rentabilidad y la evolución del crédito.</p>
+
+<p>En cuanto al capital accionario, BanBajío realizó un <em>split</em> 5 a 1 en 2017 antes de su oferta pública. Cada acción previa se convirtió en cinco acciones, sin modificar el valor económico proporcional de la participación de los accionistas. Posteriormente, la acción comenzó a cotizar en la BMV el 8 de junio de 2017.<sup><a href="#ref1">[1]</a></sup><sup><a href="#ref8">[8]</a></sup> En los documentos corporativos revisados no se identificó otro <em>split</em> posterior.</p>
+
+<h2 id="riesgos">7. Identificación y análisis de riesgos</h2>
+<div class="risk-grid">
+<div class="risk-card"><strong>Riesgo de crédito y concentración</strong><br>Al cierre de 2025, 86.2% de la cartera estaba colocada en empresas. Una desaceleración económica, menor flujo de efectivo de las compañías o un aumento del incumplimiento elevaría cartera etapa 3, costo de riesgo y reservas, reduciendo la utilidad y potencialmente el valor de la acción.<sup><a href="#ref5">[5]</a></sup></div>
+<div class="risk-card"><strong>Riesgo de tasa de interés y mercado</strong><br>El banco obtiene una parte central de sus ingresos del diferencial entre activos y pasivos financieros. Cuando las tasas cambian, activos y fuentes de fondeo no necesariamente se reprician al mismo tiempo. La reducción del MIN en 2025 demuestra que este riesgo sí se refleja en resultados.<sup><a href="#ref5">[5]</a></sup></div>
+<div class="risk-card"><strong>Riesgo de liquidez y fondeo</strong><br>BanBajío depende principalmente de captación de clientes, pero también utiliza préstamos interbancarios y reportos. Una salida fuerte de depósitos o un encarecimiento del fondeo podría presionar liquidez y margen. La estructura de fondeo debe analizarse junto con capitalización y liquidez regulatoria.</div>
+<div class="risk-card"><strong>Riesgo operativo, tecnológico y legal</strong><br>Fallas de sistemas, ciberataques, fraude, errores de procesos o incumplimientos regulatorios pueden generar pérdidas directas y afectar la confianza de clientes. La importancia de la banca digital aumenta la exposición tecnológica aun cuando también mejora la eficiencia operativa.</div>
+<div class="risk-card"><strong>Riesgo macroeconómico</strong><br>Un menor crecimiento de México puede reducir la demanda de crédito y deteriorar la capacidad de pago de empresas y PYMES. Inflación, movimientos cambiarios y decisiones de política monetaria también afectan a los acreditados y al margen financiero.</div>
+<div class="risk-card"><strong>Riesgo para la acción BBAJIO</strong><br>Estos riesgos llegan al accionista por medio de cambios en utilidad, EPS, dividendos, crecimiento y expectativas. Por ello, anuncios sobre tasas, calidad de cartera o actividad económica pueden modificar la percepción de riesgo y generar movimientos en el precio de la acción.</div>
+</div>
+
+<p>El punto más relevante es que los riesgos no actúan de manera aislada. Por ejemplo, una desaceleración económica puede aumentar el riesgo de crédito; al mismo tiempo, una baja de tasas puede reducir el margen financiero y limitar la capacidad de absorber mayores provisiones con utilidades. Esa interacción es especialmente importante en BanBajío por su concentración en crédito empresarial.</p>
+
+<h2 id="conclusion">8. Conclusión</h2>
+<p>Con base en la información revisada, BanBajío puede caracterizarse como un banco <strong>sólido y en una etapa de consolidación</strong>, más que como un negocio en expansión acelerada. La conclusión se apoya en su posición dentro de la banca empresarial, la escala de su cartera, una morosidad controlada y un ICAP de 15.46% al cierre de 2025. Al mismo tiempo, los estados financieros muestran que la rentabilidad se está normalizando: el resultado neto pasó de $11,013 millones en 2023 a $9,079 millones en 2025, el ROE bajó de 28.1% a 19.4% y el ROA de 3.4% a 2.4%.<sup><a href="#ref3">[3]</a></sup><sup><a href="#ref5">[5]</a></sup></p>
+
+<p>El análisis de los márgenes refuerza esa lectura. El margen bruto bancario construido se mantuvo alrededor de 53%–56%, pero el margen operativo pasó de 60.50% en 2023 a 49.69% en 2025 y el margen neto de 44.24% a 36.37%. Esto indica que el banco todavía genera un margen financiero importante, pero una parte menor termina convirtiéndose en utilidad después de provisiones y gastos. La serie de EPS muestra el mismo patrón: después de una recuperación muy fuerte entre 2021 y 2023, la utilidad trimestral por acción se moderó en 2024 y 2025.</p>
+
+<p>Los principales riesgos que podrían cambiar esta trayectoria son el deterioro del crédito empresarial, una desaceleración de la economía mexicana, nuevas presiones en el margen por movimientos de tasas, un encarecimiento del fondeo y eventos operativos o tecnológicos. La concentración en empresas es una fortaleza comercial por la especialización del banco, pero también implica que su desempeño está estrechamente ligado a la salud del sector productivo.</p>
+
+<p>Por estas razones, para la siguiente parte del proyecto esperaríamos que la acción BBAJIO presente una volatilidad <strong>moderada pero sensible a choques externos</strong>, especialmente a cambios en expectativas de tasas, crecimiento económico, costo de riesgo y calidad de cartera. Esta es una hipótesis derivada de los fundamentos; el análisis cuantitativo posterior deberá comprobar si esos factores efectivamente se reflejan en la volatilidad y los rendimientos históricos de la acción.</p>
+
+<h2 id="referencias">9. Referencias</h2>
+<ol class="references">
+<li id="ref1">Bolsa Mexicana de Valores. (2026). <em>Perfil de Banco del Bajío, S.A., Institución de Banca Múltiple (BBAJIO)</em>. <a href="https://bmv.com.mx/es/emisoras/perfil/BBAJIO-31431" target="_blank">https://bmv.com.mx/es/emisoras/perfil/BBAJIO-31431</a></li>
+<li id="ref2">Bolsa Mexicana de Valores. (2026). <em>Eventos relevantes de BBAJIO</em>. <a href="https://www.bmv.com.mx/es/emisoras/eventosrelevantes/BBAJIO-31431-CGEN_CAPIT" target="_blank">https://www.bmv.com.mx/es/emisoras/eventosrelevantes/BBAJIO-31431-CGEN_CAPIT</a></li>
+<li id="ref3">Banco del Bajío. (2024). <em>Reporte Anual 2023</em>. <a href="https://www2.bb.com.mx/cs/BanBajio/home/Inversionistas/Informaci%C3%B3n%20Financiera/Informacion-Anual/Reporte-Anual-2023.pdf" target="_blank">https://www2.bb.com.mx/cs/BanBajio/home/Inversionistas/Informaci%C3%B3n%20Financiera/Informacion-Anual/Reporte-Anual-2023.pdf</a></li>
+<li id="ref4">Banco del Bajío. (2025). <em>Informe Integrado 2024</em>. <a href="https://www.bb.com.mx/cs/BanBajio/home/micrositios/responsabilidad-social/informe-anual.pdf" target="_blank">https://www.bb.com.mx/cs/BanBajio/home/micrositios/responsabilidad-social/informe-anual.pdf</a></li>
+<li id="ref5">Bolsa Mexicana de Valores / Banco del Bajío. (2026). <em>Información financiera consolidada del 4T 2025</em>. <a href="https://www.bmv.com.mx/docs-pub/infinbnc/infinbnc_1527714_2025-04_1.pdf" target="_blank">https://www.bmv.com.mx/docs-pub/infinbnc/infinbnc_1527714_2025-04_1.pdf</a></li>
+<li id="ref6">Bolsa Mexicana de Valores. (s. f.). <em>Información periódica financiera y anual de BBAJIO</em>. <a href="https://www.bmv.com.mx/es/emisoras/informacionfinanciera/BBAJIO-31431-CGEN_CAPIT" target="_blank">https://www.bmv.com.mx/es/emisoras/informacionfinanciera/BBAJIO-31431-CGEN_CAPIT</a></li>
+<li id="ref7">Banco del Bajío. (2020). <em>Reporte Anual 2019</em>. <a href="https://www.bb.com.mx/cs/BanBajio/home/Inversionistas/Informaci%C3%B3n%20Financiera/Informacion-Anual/reporte-anual-2019.pdf" target="_blank">https://www.bb.com.mx/cs/BanBajio/home/Inversionistas/Informaci%C3%B3n%20Financiera/Informacion-Anual/reporte-anual-2019.pdf</a></li>
+<li id="ref8">Banco del Bajío. (2023). <em>Reporte Anual 2022</em>. <a href="https://www.bb.com.mx/cs/BanBajio/home/Inversionistas/Informaci%C3%B3n%20Financiera/Informacion-Anual/Reporte-Anual-2022.pdf" target="_blank">https://www.bb.com.mx/cs/BanBajio/home/Inversionistas/Informaci%C3%B3n%20Financiera/Informacion-Anual/Reporte-Anual-2022.pdf</a></li>
+<li id="ref9">Bolsa Mexicana de Valores / Banco del Bajío. (2025). <em>Información financiera consolidada del 2T 2025</em>. <a href="https://www.bmv.com.mx/docs-pub/infinbnc/infinbnc_1481073_2025-02_1.pdf" target="_blank">https://www.bmv.com.mx/docs-pub/infinbnc/infinbnc_1481073_2025-02_1.pdf</a></li>
+<li id="ref10">Banco del Bajío / Bolsa Mexicana de Valores. (2025). <em>Acta de Asamblea Ordinaria Anual del 30 de abril de 2025</em>. <a href="https://www.bmv.com.mx/docs-dig/corporativa/BBAJIO/2025/1462154-BBAJIO-Acta_de_asamblea_ordinaria_anual_con_fecha_de_asamblea_del_30-04-2025.pdf" target="_blank">https://www.bmv.com.mx/docs-dig/corporativa/BBAJIO/2025/1462154-BBAJIO-Acta_de_asamblea_ordinaria_anual_con_fecha_de_asamblea_del_30-04-2025.pdf</a></li>
+<li id="ref11">Banco del Bajío / Bolsa Mexicana de Valores. (2026). <em>Acta de Asamblea Ordinaria Anual del 29 de abril de 2026</em>. <a href="https://www.bmv.com.mx/docs-dig/corporativa/BBAJIO/2026/1555533-BBAJIO-Acta_de_asamblea_ordinaria_anual_con_fecha_de_asamblea_del_29-04-2026.pdf" target="_blank">https://www.bmv.com.mx/docs-dig/corporativa/BBAJIO/2026/1555533-BBAJIO-Acta_de_asamblea_ordinaria_anual_con_fecha_de_asamblea_del_29-04-2026.pdf</a></li>
+</ol>
+
+<div class="footer">
+<p><strong>Nota metodológica general:</strong> Las cifras monetarias se presentan en millones de pesos, salvo que se indique lo contrario. Se priorizaron estados financieros, reportes anuales, informes integrados y documentos publicados por BanBajío y la BMV. Los indicadores marcados como “construido” o “proxy” fueron calculados por el equipo a partir de esas partidas y se identifican así para conservar la trazabilidad.</p>
+<p>Proyecto Final Parte 1 — Análisis del Riesgo — Equipo 6 — Otoño 2026</p>
+</div>
+
+</div>
+</body>
+</html>
