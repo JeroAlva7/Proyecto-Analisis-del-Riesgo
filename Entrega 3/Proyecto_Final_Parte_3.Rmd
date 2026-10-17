@@ -1,0 +1,748 @@
+---
+title: "Proyecto Final: Parte 3 - Rendimientos, Volatilidad y Simulación del Precio"
+author: "Jeronimo Rojas Alvarado (731609), Alan Jesús Hernández Soto (752714), Francisco Josué Ramírez Avila (747819), JP Mendez"
+date: "16 de octubre de 2026"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 8,
+  fig.height = 4.8
+)
+options(scipen = 999)
+set.seed(456)
+```
+
+# 1. Introducción
+
+En las dos primeras entregas del proyecto se analizó a Banco del Bajío (BanBajío) desde dos perspectivas complementarias. Primero se estudió el modelo de negocio, la información financiera y los principales riesgos del banco. Después se analizó el comportamiento histórico de la acción **BBAJIOO**, identificando periodos de alzas, caídas, un máximo *drawdown* importante y la relación de esos movimientos con eventos económicos, políticos y empresariales.
+
+En esta tercera parte el análisis se concentra en la distribución de los rendimientos, la volatilidad y la simulación del precio. El objetivo es evaluar hasta qué punto los datos observados son consistentes con los supuestos utilizados por el Movimiento Browniano Geométrico (GBM) y, posteriormente, utilizar los parámetros estimados para construir escenarios futuros de precio.
+
+El documento se organiza en cinco etapas. Primero se calculan los rendimientos logarítmicos y medidas de volatilidad, tanto para toda la muestra reciente como año por año. Después se aplican pruebas de normalidad de Jarque-Bera y una prueba t para la media diaria. En seguida se estiman los parámetros del GBM en frecuencia diaria y anual y se realizan simulaciones para distintos horizontes. Finalmente, se contrastan los resultados empíricos con los supuestos teóricos del modelo y se discuten sus implicaciones para la medición del riesgo.
+
+**Nota metodológica sobre las fechas.** La consigna utiliza dos cortes de información. Para las pruebas estadísticas y la estimación del GBM se solicita información **hasta el último día de 2025**; al mismo tiempo, en el apartado de estimaciones descriptivas se pide utilizar información **desde 2021 hasta lo que va de 2026**. Para cumplir ambas indicaciones, se usan dos subconjuntos: una muestra principal que termina el 31 de diciembre de 2025 y una muestra descriptiva 2021-2026. Las observaciones de 2026 no entran en las pruebas de normalidad, la prueba t ni la calibración del GBM.
+
+# 2. Cálculo de rendimientos y volatilidad
+
+## 2.1 Metodología
+
+El rendimiento logarítmico diario se define como
+
+\[
+r_t=\ln\left(\frac{S_t}{S_{t-1}}\right)=\ln(S_t)-\ln(S_{t-1}).
+\]
+
+A partir de una muestra de $n$ rendimientos, el rendimiento promedio diario se estima como
+
+\[
+\bar r=\frac{1}{n}\sum_{t=1}^{n}r_t,
+\]
+
+y la volatilidad diaria mediante la desviación estándar muestral
+
+\[
+s=\sqrt{\frac{1}{n-1}\sum_{t=1}^{n}(r_t-\bar r)^2}.
+\]
+
+Siguiendo la metodología utilizada en clase, se emplean 252 días bursátiles por año. La media logarítmica anualizada y la volatilidad anualizada se calculan como
+
+\[
+\bar r_{anual}=252\bar r,
+\]
+
+\[
+\sigma_{anual}=\sigma_{diaria}\sqrt{252}.
+\]
+
+La regla de la raíz del tiempo supone que la estructura de varianza es suficientemente estable y que las covarianzas entre rendimientos de distintos días no alteran de forma importante la agregación. Por ello, la anualización es una aproximación útil, pero no implica que la volatilidad sea realmente constante a lo largo del tiempo.
+
+## 2.2 Descarga de datos
+
+Para mantener consistencia con la segunda entrega del proyecto y con la indicación de utilizar el último **precio de cotización**, el análisis principal se realiza con el **precio de cierre** de Yahoo Finance. La implementación conserva la estructura utilizada en clase con `quantmod`, pero se aplica `Cl()` porque en esta entrega el objeto que se modela es el precio de mercado observado. La misma serie de cierre se utiliza para calcular los rendimientos y para definir el valor inicial del GBM, evitando mezclar escalas distintas.
+
+```{r paquetes}
+library(quantmod)
+library(xts)
+library(moments)
+library(tseries)
+```
+
+```{r bajar_datos}
+clave <- "BBAJIOO.MX"
+
+# Muestra principal: desde la salida a bolsa hasta el cierre de 2025.
+# En Yahoo/quantmod el argumento 'to' funciona como límite superior,
+# por eso se usa 2026-01-01 para incluir el 31/12/2025.
+datos <- getSymbols(
+  clave,
+  src = "yahoo",
+  from = "2017-06-01",
+  to = "2026-01-01",
+  auto.assign = FALSE
+)
+
+precio <- na.omit(Cl(datos))
+names(precio) <- "precio"
+
+# Muestra adicional para cumplir la estimación 2021 - 2026 YTD.
+# El corte se fija a la fecha de elaboración para mantener reproducibilidad.
+datos_2026 <- getSymbols(
+  clave,
+  src = "yahoo",
+  from = "2021-01-01",
+  to = "2026-10-17",
+  auto.assign = FALSE
+)
+
+precio_21_26 <- na.omit(Cl(datos_2026))
+names(precio_21_26) <- "precio"
+```
+
+```{r verificar_periodo}
+periodo_principal <- data.frame(
+  Inicio = as.character(first(index(precio))),
+  Fin = as.character(last(index(precio))),
+  Observaciones = NROW(precio)
+)
+
+periodo_reciente <- data.frame(
+  Inicio = as.character(first(index(precio_21_26))),
+  Fin = as.character(last(index(precio_21_26))),
+  Observaciones = NROW(precio_21_26)
+)
+
+knitr::kable(periodo_principal, caption = "Muestra principal utilizada hasta 2025")
+knitr::kable(periodo_reciente, caption = "Muestra descriptiva 2021-2026")
+```
+
+## 2.3 Rendimiento logarítmico diario
+
+```{r rendimientos}
+rendimientos <- dailyReturn(precio, type="log")
+names(rendimientos) <- "rendimiento"
+
+rendimientos_21_26 <- dailyReturn(precio_21_26, type="log")
+names(rendimientos_21_26) <- "rendimiento"
+
+head(rendimientos)
+```
+
+```{r graficas_precio_rendimiento}
+plot(
+  precio,
+  main = "BBAJIOO - Precio de cierre hasta diciembre de 2025",
+  xlab = "Fecha",
+  ylab = "Precio de cierre (MXN)"
+)
+
+plot(
+  rendimientos,
+  main = "BBAJIOO - Rendimientos logarítmicos diarios",
+  xlab = "Fecha",
+  ylab = "Rendimiento logarítmico"
+)
+abline(h = 0, lty = 2)
+```
+
+## 2.4 Estimaciones 2021-2026 YTD
+
+```{r parametros_2021_2026}
+dias_cot <- 252
+
+r_21_26 <- as.numeric(na.omit(rendimientos_21_26))
+mean_log_21_26 <- mean(r_21_26)
+sigma_log_21_26 <- sd(r_21_26)
+mean_log_anual_21_26 <- dias_cot*mean_log_21_26
+sigma_anual_21_26 <- sigma_log_21_26*sqrt(dias_cot)
+
+tabla_total <- data.frame(
+  Indicador = c(
+    "Rendimiento promedio diario",
+    "Volatilidad diaria",
+    "Rendimiento promedio anualizado",
+    "Volatilidad anualizada"
+  ),
+  Valor = c(
+    mean_log_21_26,
+    sigma_log_21_26,
+    mean_log_anual_21_26,
+    sigma_anual_21_26
+  ),
+  Porcentaje = 100*c(
+    mean_log_21_26,
+    sigma_log_21_26,
+    mean_log_anual_21_26,
+    sigma_anual_21_26
+  )
+)
+
+knitr::kable(tabla_total, digits=6, caption="Estimaciones con información 2021-2026 YTD")
+```
+
+La media diaria debe interpretarse en conjunto con la volatilidad. En series financieras el rendimiento medio diario suele ser pequeño en relación con la dispersión diaria. Por esta razón, el riesgo de corto plazo está dominado por la variabilidad alrededor de la media y no únicamente por el signo del rendimiento esperado.
+
+## 2.5 Estimaciones año por año
+
+```{r tabla_anual}
+anios <- 2021:2026
+tabla_anual <- data.frame()
+
+for (anio in anios) {
+  r_anio <- na.omit(rendimientos_21_26[paste0(anio)])
+  r_num <- as.numeric(r_anio)
+  
+  tabla_anual <- rbind(
+    tabla_anual,
+    data.frame(
+      Anio = ifelse(anio==2026, "2026 YTD", as.character(anio)),
+      Observaciones = length(r_num),
+      Rendimiento_promedio_diario = mean(r_num),
+      Volatilidad_diaria = sd(r_num),
+      Rendimiento_anualizado = dias_cot*mean(r_num),
+      Volatilidad_anualizada = sd(r_num)*sqrt(dias_cot)
+    )
+  )
+}
+
+knitr::kable(
+  tabla_anual,
+  digits = 6,
+  caption = "Rendimiento y volatilidad de BBAJIOO por año"
+)
+```
+
+```{r grafica_vol_anual}
+barplot(
+  100*tabla_anual$Volatilidad_anualizada,
+  names.arg = tabla_anual$Anio,
+  main = "Volatilidad anualizada por año",
+  xlab = "Año",
+  ylab = "Volatilidad anualizada (%)"
+)
+```
+
+```{r interpretacion_volatilidad, echo=FALSE, results='asis'}
+idx_max <- which.max(tabla_anual$Volatilidad_anualizada)
+idx_min <- which.min(tabla_anual$Volatilidad_anualizada)
+idx_rmax <- which.max(tabla_anual$Rendimiento_anualizado)
+idx_rmin <- which.min(tabla_anual$Rendimiento_anualizado)
+
+cat(
+  paste0(
+    "El año con la mayor volatilidad anualizada de la muestra reciente es **",
+    tabla_anual$Anio[idx_max], "**, con aproximadamente **",
+    sprintf("%.2f", 100*tabla_anual$Volatilidad_anualizada[idx_max]),
+    "%**. El menor nivel corresponde a **", tabla_anual$Anio[idx_min],
+    "**, con aproximadamente **",
+    sprintf("%.2f", 100*tabla_anual$Volatilidad_anualizada[idx_min]),
+    "%**. Por su parte, el mayor rendimiento medio anualizado aparece en **",
+    tabla_anual$Anio[idx_rmax], "**, mientras que el menor se observa en **",
+    tabla_anual$Anio[idx_rmin], "**. La diferencia entre años muestra que tanto el centro como la dispersión de los rendimientos cambian a través del tiempo. "
+  )
+)
+
+cat(
+  "Esto es consistente con la evidencia observada en la Parte 2 del proyecto, donde BBAJIOO presentó periodos de recuperación, correcciones y choques de distinta intensidad. Sin embargo, una diferencia entre volatilidades anuales no constituye por sí sola una prueba formal de cambio estructural; sí es evidencia descriptiva de que el supuesto de una sola volatilidad constante es restrictivo. Esta observación conecta con la unidad de volatilidad dinámica, donde la varianza se modela como una cantidad que puede cambiar con el tiempo. El dato de 2026 se presenta como YTD: su media diaria se anualiza para hacerla comparable, pero no representa un rendimiento realizado de un año completo."
+)
+```
+
+# 3. Pruebas estadísticas
+
+## 3.1 Metodología de Jarque-Bera
+
+La prueba de Jarque-Bera contrasta si una muestra presenta asimetría y curtosis compatibles con una distribución normal. Las hipótesis son
+
+\[
+H_0:\text{ la serie es compatible con normalidad},
+\]
+
+\[
+H_a:\text{ la serie no es compatible con normalidad}.
+\]
+
+El estadístico es
+
+\[
+JB=\frac{n}{6}\left[S^2+\frac{(K-3)^2}{4}\right],
+\]
+
+donde $S$ representa la asimetría y $K$ la curtosis. Bajo normalidad se espera $S=0$ y $K=3$. Con un nivel de significancia de 5%, se rechaza $H_0$ si el valor-p es menor que 0.05.
+
+Se aplica la prueba a tres objetos: rendimientos logarítmicos, precio ajustado y logaritmo natural del precio.
+
+```{r series_pruebas}
+r <- as.numeric(na.omit(rendimientos))
+p <- as.numeric(na.omit(precio))
+ln_p <- log(p)
+```
+
+```{r jb_tests}
+jb_rend <- jarque.bera.test(r)
+jb_precio <- jarque.bera.test(p)
+jb_logprecio <- jarque.bera.test(ln_p)
+
+jb_rend
+jb_precio
+jb_logprecio
+```
+
+```{r forma_distribuciones}
+forma_series <- data.frame(
+  Serie = c("Rendimientos", "Precio", "Log precio"),
+  Asimetria = c(skewness(r), skewness(p), skewness(ln_p)),
+  Curtosis = c(kurtosis(r), kurtosis(p), kurtosis(ln_p)),
+  JB = c(
+    as.numeric(jb_rend$statistic),
+    as.numeric(jb_precio$statistic),
+    as.numeric(jb_logprecio$statistic)
+  ),
+  P_value = c(jb_rend$p.value, jb_precio$p.value, jb_logprecio$p.value)
+)
+
+knitr::kable(
+  forma_series,
+  digits = 6,
+  caption = "Normalidad, asimetría y curtosis"
+)
+```
+
+```{r histogramas_normalidad}
+par(mfrow=c(1,3))
+
+hist(r, breaks=50, probability=TRUE,
+     main="Rendimientos", xlab="r")
+curve(dnorm(x, mean=mean(r), sd=sd(r)), add=TRUE, lty=2, lwd=2)
+
+hist(p, breaks=50, probability=TRUE,
+     main="Precio", xlab="Precio")
+curve(dnorm(x, mean=mean(p), sd=sd(p)), add=TRUE, lty=2, lwd=2)
+
+hist(ln_p, breaks=50, probability=TRUE,
+     main="Log precio", xlab="ln(Precio)")
+curve(dnorm(x, mean=mean(ln_p), sd=sd(ln_p)), add=TRUE, lty=2, lwd=2)
+
+par(mfrow=c(1,1))
+```
+
+```{r qqplots_normalidad}
+par(mfrow=c(1,3))
+qqnorm(r, main="Q-Q Rendimientos")
+qqline(r, lty=2)
+qqnorm(p, main="Q-Q Precio")
+qqline(p, lty=2)
+qqnorm(ln_p, main="Q-Q Log precio")
+qqline(ln_p, lty=2)
+par(mfrow=c(1,1))
+```
+
+```{r interpretacion_jb, echo=FALSE, results='asis'}
+if (jb_rend$p.value < 0.05) {
+  cat("**Rendimientos.** Se rechaza la hipótesis de normalidad al 5%. Esto significa que el modelo normal no reproduce completamente la forma empírica de los rendimientos diarios. La asimetría y la curtosis permiten identificar si la desviación se relaciona con falta de simetría, colas pesadas o ambas. Financiera y estadísticamente, este resultado es relevante porque una normal puede asignar probabilidades demasiado pequeñas a movimientos extremos.\n\n")
+} else {
+  cat("**Rendimientos.** No se rechaza la hipótesis de normalidad al 5%. En esta muestra no existe evidencia estadística suficiente para descartar la normal como aproximación de los rendimientos diarios. Esto no prueba que la distribución sea exactamente normal, pero indica que la prueba JB no detecta una desviación suficientemente grande con esta muestra.\n\n")
+}
+
+if (jb_precio$p.value < 0.05) {
+  cat("**Precio.** Se rechaza la normalidad del nivel de precios. Este resultado es coherente con que un proceso de precios positivo y con tendencia no tenga por qué distribuirse normalmente cuando se mezclan observaciones correspondientes a fechas distintas.\n\n")
+} else {
+  cat("**Precio.** No se rechaza la normalidad del nivel de precios en la muestra. Aun así, bajo GBM la predicción teórica no es que el precio sea Normal, sino lognormal a un horizonte fijo.\n\n")
+}
+
+if (jb_logprecio$p.value < 0.05) {
+  cat("**Log precio.** También se rechaza la normalidad del logaritmo del precio considerado como una sola muestra temporal. Esto no contradice de manera automática la solución del GBM: el modelo establece que, condicionado a un precio inicial y para un horizonte fijo, $\\ln S_T$ es normal. Una serie histórica reúne fechas con medias y varianzas distintas, por lo que esta prueba sobre niveles debe interpretarse de forma descriptiva y no como la única prueba del modelo.\n\n")
+} else {
+  cat("**Log precio.** No se rechaza la normalidad del logaritmo del precio. Este resultado es compatible con la estructura lognormal del GBM, aunque la prueba en una serie temporal de niveles no sustituye la evaluación de los rendimientos.\n\n")
+}
+```
+
+## 3.2 Prueba t de media diaria igual a cero
+
+Las hipótesis son
+
+\[
+H_0:\mu_r=0,
+\]
+
+\[
+H_a:\mu_r\neq0.
+\]
+
+El estadístico t es
+
+\[
+t=\frac{\bar r-0}{s/\sqrt{n}},
+\]
+
+donde $\bar r$ es la media muestral, $s$ la desviación estándar y $n$ el número de observaciones.
+
+```{r t_test}
+media_r <- mean(r)
+sd_r <- sd(r)
+n_r <- length(r)
+t_manual <- media_r/(sd_r/sqrt(n_r))
+
+prueba_t <- t.test(r, mu=0, alternative="two.sided")
+
+t_manual
+prueba_t
+```
+
+```{r interpretacion_t, echo=FALSE, results='asis'}
+if (prueba_t$p.value < 0.05) {
+  cat(paste0(
+    "El valor-p de la prueba t es **", sprintf("%.5f", prueba_t$p.value),
+    "**, por lo que se rechaza $H_0$ al 5%. La media diaria es estadísticamente distinta de cero en la muestra. Sin embargo, esto no implica automáticamente una oportunidad de arbitraje ni una violación de eficiencia: una media estadísticamente significativa puede ser pequeña en términos económicos y no considera costos, riesgo ni cambios de régimen."
+  ))
+} else {
+  cat(paste0(
+    "El valor-p de la prueba t es **", sprintf("%.5f", prueba_t$p.value),
+    "**, por lo que no se rechaza $H_0$ al 5%. No hay evidencia suficiente para afirmar que el rendimiento promedio diario sea distinto de cero. Este resultado es consistente con la idea de que el rendimiento diario tiene una señal media pequeña frente a su volatilidad y con una predictibilidad limitada del rendimiento de muy corto plazo. No constituye, por sí solo, una prueba completa de eficiencia de mercado."
+  ))
+}
+```
+
+# 4. Estimación del modelo con parámetros diarios
+
+## 4.1 Del rendimiento logarítmico al parámetro de drift del GBM
+
+El Movimiento Browniano Geométrico se expresa como
+
+\[
+dS_t=\mu S_t\,dt+\sigma S_t\,dW_t.
+\]
+
+Al aplicar Itô a $\ln S_t$ se obtiene
+
+\[
+d\ln S_t=\left(\mu-\frac{1}{2}\sigma^2\right)dt+\sigma dW_t.
+\]
+
+Por tanto, para un intervalo de un día,
+
+\[
+E[r_t]=\mu-\frac{1}{2}\sigma^2.
+\]
+
+La media de los log-rendimientos no es directamente el parámetro $\mu$ de la ecuación del precio. Siguiendo el procedimiento utilizado en clase,
+
+\[
+\hat\mu_{diario}=\bar r+\frac{1}{2}\hat\sigma_{diaria}^2.
+\]
+
+La solución exacta utilizada para simular es
+
+\[
+S_T=S_0\exp\left[\left(\mu-\frac{1}{2}\sigma^2\right)T+\sigma\sqrt{T}Z\right],
+\qquad Z\sim N(0,1).
+\]
+
+El precio esperado teórico es
+
+\[
+E[S_T]=S_0e^{\mu T}.
+\]
+
+El intervalo al 95% bajo el modelo se obtiene con los cuantiles 2.5% y 97.5% de la distribución lognormal:
+
+\[
+S_{inf}=S_0\exp\left[\left(\mu-\frac12\sigma^2\right)T+z_{0.025}\sigma\sqrt T\right],
+\]
+
+\[
+S_{sup}=S_0\exp\left[\left(\mu-\frac12\sigma^2\right)T+z_{0.975}\sigma\sqrt T\right].
+\]
+
+Este intervalo se interpreta como un **intervalo predictivo/modelado del 95% para el precio** bajo los supuestos del GBM. No incorpora incertidumbre adicional por error en la estimación de $\mu$ y $\sigma$.
+
+```{r parametros_diarios}
+mean_log <- mean(rendimientos, na.rm=TRUE)
+sigma_log <- sd(rendimientos, na.rm=TRUE)
+mu_gbm_diario <- mean_log + 0.5*sigma_log^2
+
+So <- as.numeric(last(precio))
+mu <- mu_gbm_diario
+sigma <- sigma_log
+
+parametros_diarios <- data.frame(
+  Parametro = c("S0", "Media log diaria", "Sigma diaria", "Mu GBM diario"),
+  Valor = c(So, mean_log, sigma_log, mu_gbm_diario)
+)
+
+knitr::kable(parametros_diarios, digits=8, caption="Parámetros diarios del GBM")
+```
+
+Con los parámetros estimados, la ecuación diaria queda numéricamente como:
+
+```{r ecuacion_gbm_diaria, echo=FALSE, results='asis'}
+cat(sprintf(
+  "$$dS_t = %.8f\\,S_t\\,dt + %.8f\\,S_t\\,dW_t.$$",
+  mu, sigma
+))
+```
+
+```{r funcion_gbm}
+gbm_summary <- function(So, mu, sigma, T, nc){
+  z_nc <- qnorm(1-(1-nc)/2)
+  c(
+    Precio_Esperado=So*exp(mu*T),
+    Mediana=So*exp((mu-.5*sigma^2)*T),
+    inferior=So*exp((mu-.5*sigma^2)*T-z_nc*sigma*sqrt(T)),
+    superior=So*exp((mu-.5*sigma^2)*T+z_nc*sigma*sqrt(T))
+  )
+}
+```
+
+## 4.2 Simulación a 10, 20 y 40 días
+
+Se generan 100,000 shocks normales estándar y se utiliza la solución exacta del GBM. Con parámetros diarios, el tiempo se mide en días bursátiles: $T=10$, $20$ y $40$.
+
+```{r simulacion_diaria}
+set.seed(456)
+z <- rnorm(100000, mean=0, sd=1)
+
+St_10d <- So*exp((mu-.5*sigma^2)*10+sigma*sqrt(10)*z)
+St_20d <- So*exp((mu-.5*sigma^2)*20+sigma*sqrt(20)*z)
+St_40d <- So*exp((mu-.5*sigma^2)*40+sigma*sqrt(40)*z)
+```
+
+```{r tabla_simulacion_diaria}
+res_10d <- gbm_summary(So, mu, sigma, 10, .95)
+res_20d <- gbm_summary(So, mu, sigma, 20, .95)
+res_40d <- gbm_summary(So, mu, sigma, 40, .95)
+
+tabla_diaria <- data.frame(
+  Horizonte = c("10 días", "20 días", "40 días"),
+  Media_simulada = c(mean(St_10d), mean(St_20d), mean(St_40d)),
+  Precio_esperado_teorico = c(res_10d["Precio_Esperado"], res_20d["Precio_Esperado"], res_40d["Precio_Esperado"]),
+  Limite_inferior_95 = c(res_10d["inferior"], res_20d["inferior"], res_40d["inferior"]),
+  Limite_superior_95 = c(res_10d["superior"], res_20d["superior"], res_40d["superior"])
+)
+
+tabla_diaria$Amplitud_intervalo <- tabla_diaria$Limite_superior_95-tabla_diaria$Limite_inferior_95
+
+knitr::kable(tabla_diaria, digits=4, caption="Simulación del precio con parámetros diarios")
+```
+
+```{r histogramas_diarios}
+par(mfrow=c(1,3))
+hist(St_10d, breaks=80, main="10 días", xlab="Precio (MXN)")
+abline(v=So, lty=2)
+hist(St_20d, breaks=80, main="20 días", xlab="Precio (MXN)")
+abline(v=So, lty=2)
+hist(St_40d, breaks=80, main="40 días", xlab="Precio (MXN)")
+abline(v=So, lty=2)
+par(mfrow=c(1,1))
+```
+
+```{r interpretacion_diaria, echo=FALSE, results='asis'}
+cat(paste0(
+  "La amplitud del intervalo modelado al 95% pasa de aproximadamente **$",
+  sprintf("%.2f", tabla_diaria$Amplitud_intervalo[1]),
+  "** a 10 días a **$", sprintf("%.2f", tabla_diaria$Amplitud_intervalo[3]),
+  "** a 40 días. El aumento ocurre porque el término aleatorio del GBM escala con $\\sqrt{T}$. "
+))
+cat("La media esperada también cambia con el horizonte por el componente de drift, pero para la medición de riesgo la ampliación de la distribución es central: cuanto más tiempo transcurre, mayor es el conjunto de precios compatibles con el modelo. Esto significa que una proyección puntual pierde información importante si no se presenta junto con su intervalo de incertidumbre.")
+```
+
+# 5. Estimación del modelo con parámetros anuales
+
+## 5.1 Anualización de parámetros
+
+A partir de los rendimientos diarios hasta 2025,
+
+\[
+\sigma_{anual}=\sigma_{diaria}\sqrt{252},
+\]
+
+\[
+\bar r_{log,anual}=252\bar r_{diario},
+\]
+
+y el parámetro anual del GBM es
+
+\[
+\mu_{GBM,anual}=252\bar r_{diario}+\frac12\sigma_{anual}^2.
+\]
+
+```{r parametros_anuales}
+sigma_anual <- sigma_log*sqrt(dias_cot)
+mu_log_anual <- dias_cot*mean_log
+mu_gbm_anual <- mu_log_anual+0.5*sigma_anual^2
+
+parametros_anuales <- data.frame(
+  Parametro = c("Media log anualizada", "Sigma anual", "Mu GBM anual"),
+  Valor = c(mu_log_anual, sigma_anual, mu_gbm_anual)
+)
+
+knitr::kable(parametros_anuales, digits=6, caption="Parámetros anualizados del GBM")
+```
+
+En escala anual, la ecuación estimada del GBM es:
+
+```{r ecuacion_gbm_anual, echo=FALSE, results='asis'}
+cat(sprintf(
+  "$$dS_t = %.6f\\,S_t\\,dt + %.6f\\,S_t\\,dW_t.$$",
+  mu_gbm_anual, sigma_anual
+))
+```
+
+## 5.2 Simulación a 3, 6, 9 y 12 meses
+
+Ahora el tiempo se mide en años:
+
+\[
+T\in\{0.25,0.50,0.75,1.00\}.
+\]
+
+```{r simulacion_anual}
+mu <- mu_gbm_anual
+sigma <- sigma_anual
+
+set.seed(456)
+z_anual <- rnorm(100000, mean=0, sd=1)
+
+St_3m <- So*exp((mu-.5*sigma^2)*.25+sigma*sqrt(.25)*z_anual)
+St_6m <- So*exp((mu-.5*sigma^2)*.50+sigma*sqrt(.50)*z_anual)
+St_9m <- So*exp((mu-.5*sigma^2)*.75+sigma*sqrt(.75)*z_anual)
+St_12m <- So*exp((mu-.5*sigma^2)*1+sigma*sqrt(1)*z_anual)
+```
+
+```{r tabla_simulacion_anual}
+res_3m <- gbm_summary(So, mu, sigma, .25, .95)
+res_6m <- gbm_summary(So, mu, sigma, .50, .95)
+res_9m <- gbm_summary(So, mu, sigma, .75, .95)
+res_12m <- gbm_summary(So, mu, sigma, 1, .95)
+
+tabla_anual_gbm <- data.frame(
+  Horizonte = c("3 meses", "6 meses", "9 meses", "12 meses"),
+  Media_simulada = c(mean(St_3m), mean(St_6m), mean(St_9m), mean(St_12m)),
+  Precio_esperado_teorico = c(
+    res_3m["Precio_Esperado"],
+    res_6m["Precio_Esperado"],
+    res_9m["Precio_Esperado"],
+    res_12m["Precio_Esperado"]
+  ),
+  Limite_inferior_95 = c(res_3m["inferior"], res_6m["inferior"], res_9m["inferior"], res_12m["inferior"]),
+  Limite_superior_95 = c(res_3m["superior"], res_6m["superior"], res_9m["superior"], res_12m["superior"])
+)
+
+tabla_anual_gbm$Amplitud_intervalo <- tabla_anual_gbm$Limite_superior_95-tabla_anual_gbm$Limite_inferior_95
+
+knitr::kable(tabla_anual_gbm, digits=4, caption="Simulación del precio con parámetros anualizados")
+```
+
+```{r histogramas_anuales}
+par(mfrow=c(2,2))
+hist(St_3m, breaks=80, main="3 meses", xlab="Precio (MXN)")
+abline(v=So, lty=2)
+hist(St_6m, breaks=80, main="6 meses", xlab="Precio (MXN)")
+abline(v=So, lty=2)
+hist(St_9m, breaks=80, main="9 meses", xlab="Precio (MXN)")
+abline(v=So, lty=2)
+hist(St_12m, breaks=80, main="12 meses", xlab="Precio (MXN)")
+abline(v=So, lty=2)
+par(mfrow=c(1,1))
+```
+
+```{r interpretacion_anual, echo=FALSE, results='asis'}
+cat(paste0(
+  "En la escala anual, la amplitud del intervalo modelado aumenta de aproximadamente **$",
+  sprintf("%.2f", tabla_anual_gbm$Amplitud_intervalo[1]),
+  "** a tres meses a **$", sprintf("%.2f", tabla_anual_gbm$Amplitud_intervalo[4]),
+  "** a doce meses. "
+))
+cat("La dispersión crece con el horizonte porque el componente de difusión se acumula con la raíz del tiempo y, además, la transformación exponencial hace que la distribución del precio sea asimétrica. Por ello, el riesgo de horizonte largo no debe resumirse únicamente mediante el precio esperado: la distancia entre escenarios bajos y altos se vuelve considerablemente mayor.")
+```
+
+# 6. Discusión teórica
+
+## 6.1 ¿Los rendimientos siguen una distribución normal?
+
+La respuesta debe basarse principalmente en la prueba de Jarque-Bera aplicada a los rendimientos, complementada con asimetría, curtosis, histograma y gráfico Q-Q. Si la normalidad es rechazada, la consecuencia no es que el GBM resulte inútil, sino que su distribución condicional normal representa una aproximación simplificada. En finanzas, una curtosis superior a 3 y desviaciones en las colas del gráfico Q-Q son especialmente relevantes porque indican que los movimientos extremos aparecen con mayor frecuencia que bajo una Normal.
+
+```{r texto_discusion_rend, echo=FALSE, results='asis'}
+if (jb_rend$p.value < 0.05) {
+  cat(paste0(
+    "En BBAJIOO, Jarque-Bera rechaza normalidad para los rendimientos (p = ",
+    sprintf("%.5f", jb_rend$p.value), "). La asimetría estimada es ",
+    sprintf("%.3f", skewness(r)), " y la curtosis es ",
+    sprintf("%.3f", kurtosis(r)), ". Por lo tanto, la evidencia empírica no respalda una Normal exacta para los rendimientos diarios."
+  ))
+} else {
+  cat(paste0(
+    "En BBAJIOO, Jarque-Bera no rechaza normalidad para los rendimientos al 5% (p = ",
+    sprintf("%.5f", jb_rend$p.value), "). La Normal puede utilizarse como aproximación en esta muestra, aunque las conclusiones deben complementarse con la asimetría, la curtosis y la evidencia visual."
+  ))
+}
+```
+
+## 6.2 ¿El precio es normal o lognormal?
+
+Bajo GBM no se supone que $S_T$ sea Normal. La solución exacta implica
+
+\[
+\ln S_T=\ln S_0+\left(\mu-\frac12\sigma^2\right)T+\sigma\sqrt{T}Z,
+\]
+
+por lo que, para un horizonte fijo,
+
+\[
+\ln S_T\sim N\left(\ln S_0+\left(\mu-\frac12\sigma^2\right)T,\sigma^2T\right)
+\]
+
+y en consecuencia
+
+\[
+S_T\sim Lognormal.
+\]
+
+Por eso, una prueba JB aplicada a todos los niveles de precio históricos debe interpretarse con cuidado. La muestra contiene precios de momentos distintos, con distintas medias condicionales y posiblemente distintas volatilidades. El contraste más directo del supuesto de incrementos normales del GBM se realiza sobre los rendimientos logarítmicos, no sobre una mezcla de niveles de precio a través del tiempo.
+
+## 6.3 Implicaciones del supuesto de normalidad para el riesgo
+
+Si la distribución empírica tiene colas más pesadas que la Normal, un modelo basado exclusivamente en normalidad puede subestimar la probabilidad de pérdidas extremas. Este punto es especialmente relevante para BanBajío porque en la Parte 2 se identificó un máximo *drawdown* histórico de aproximadamente 68.3%, además de periodos asociados con pandemia, cambios fuertes en tasas, incertidumbre política y nueva información corporativa. Esos episodios muestran que el mercado puede experimentar movimientos que una distribución de colas delgadas considera poco probables.
+
+La normalidad también impone simetría. Si la distribución de rendimientos presenta asimetría, la probabilidad y magnitud de movimientos negativos y positivos no se comportan de la misma manera. Utilizar solo una media y una desviación estándar puede ocultar esa diferencia.
+
+## 6.4 Diferencias entre GBM y los datos reales
+
+El GBM es un modelo de referencia útil porque produce precios positivos, una solución exacta y una distribución claramente interpretable. Sin embargo, sus supuestos principales son restrictivos:
+
+1. **Drift constante.** Se supone un parámetro $\mu$ estable, aunque la rentabilidad esperada puede cambiar con el entorno.
+2. **Volatilidad constante.** Se utiliza una sola $\sigma$, mientras que las estimaciones anuales de esta entrega muestran que la volatilidad observada cambia entre años.
+3. **Innovaciones normales.** Si Jarque-Bera rechaza normalidad, los extremos empíricos no están completamente representados por el modelo.
+4. **Dinámica continua y sin saltos.** Noticias corporativas, decisiones de política monetaria y choques políticos pueden generar movimientos abruptos.
+5. **Parámetros conocidos.** Los intervalos simulados condicionan en los valores estimados de $\mu$ y $\sigma$; no incorporan la incertidumbre de estimación de esos parámetros.
+
+La diferencia de volatilidad entre años es particularmente importante porque conecta esta entrega con la unidad actual del curso. El GBM utilizado aquí trabaja con una volatilidad constante como *benchmark*, mientras que el Promedio Móvil y EWMA vistos posteriormente permiten tratar la varianza como una cantidad dinámica, dando mayor relevancia a información reciente en lugar de asumir que toda la muestra comparte la misma escala de riesgo.
+
+## 6.5 Riesgo de tomar decisiones solo con el GBM
+
+Las simulaciones no deben interpretarse como pronósticos ciertos. Representan la distribución de precios que se obtiene **si** se mantienen los parámetros y la estructura probabilística del GBM. Si en la realidad aparecen colas pesadas, volatilidad cambiante o saltos, la probabilidad real de resultados extremos puede ser mayor que la representada por el modelo.
+
+Por esta razón, el uso responsable del GBM consiste en tratarlo como un escenario base y contrastarlo con la evidencia histórica. La simulación aporta una forma ordenada de cuantificar incertidumbre, pero no elimina el riesgo derivado de eventos nuevos ni de errores de especificación del modelo.
+
+# 7. Conclusiones
+
+El análisis estadístico y la simulación permiten complementar lo observado en las primeras dos etapas del proyecto. La acción
+Ruiz, R. (2026). *Modeling Risk and Return*. Análisis del Riesgo, ITESO.
+
+Ruiz, R. (2026). *Deriving the Geometric Brownian Motion*. Análisis del Riesgo, ITESO.
+
+Ruiz, R. (2026). *From Constant to Dynamic Volatility*. Análisis del Riesgo, ITESO.
+
+Ruiz, R. (2026). *Weighted Historical Volatility*. Análisis del Riesgo, ITESO.
+
+Yahoo Finance. (2026). *Banco del Bajío, S.A., Institución de Banca Múltiple (BBAJIOO.MX): Historical Data*. https://finance.yahoo.com/quote/BBAJIOO.MX/history/
