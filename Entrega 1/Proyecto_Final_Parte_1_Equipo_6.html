@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proyecto Final Parte 1 - Análisis de Riesgo</title>
+<style>
+    body {
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.6;
+        color: #1f2937;
+        background: #f5f7fa;
+        margin: 0;
+        padding: 0;
+    }
+    .container {
+        max-width: 980px;
+        margin: 40px auto;
+        background: white;
+        padding: 52px 64px;
+        box-shadow: 0 0 18px rgba(0,0,0,0.08);
+    }
+    .cover {
+        text-align: center;
+        padding: 80px 20px 100px;
+        border-bottom: 2px solid #d1d5db;
+        margin-bottom: 40px;
+    }
+    .cover h1 {
+        font-size: 2.1rem;
+        margin-bottom: 0;
+    }
+    .cover h2 {
+        font-size: 1.5rem;
+        font-weight: normal;
+        margin-top: 8px;
+    }
+    .cover .school {
+        font-size: 1rem;
+        margin-bottom: 60px;
+    }
+    .cover .authors {
+        margin-top: 55px;
+    }
+    h2 {
+        color: #173b57;
+        margin-top: 42px;
+        border-bottom: 2px solid #dbe6ef;
+        padding-bottom: 8px;
+    }
+    h3 {
+        color: #244c67;
+        margin-top: 28px;
+    }
+    p {
+        text-align: justify;
+        margin: 0 0 14px;
+    }
+    ul {
+        margin-top: 8px;
+    }
+    .toc {
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        padding: 20px 28px;
+        border-radius: 8px;
+        margin-bottom: 36px;
+    }
+    .toc a {
+        color: #173b57;
+        text-decoration: none;
+    }
+    .highlight {
+        background: #f8fafc;
+        border-left: 4px solid #173b57;
+        padding: 14px 18px;
+        margin: 18px 0;
+    }
+    .footer-note {
+        margin-top: 60px;
+        font-size: 0.9rem;
+        color: #6b7280;
+        border-top: 1px solid #e5e7eb;
+        padding-top: 18px;
+    }
+</style>
+</head>
+<body>
+<div class="container">
+
+<section class="cover">
+    <div class="school">INSTITUTO TECNOLÓGICO Y DE ESTUDIOS SUPERIORES DE OCCIDENTE</div>
+    <h1>Análisis de Riesgo</h1>
+    <h2>Proyecto Final Parte 1</h2>
+
+    <div class="authors">
+        <strong>Presenta</strong><br>
+        Alan Jesús Hernández Soto (752714)<br>
+        Jeronimo Rojas Alvarado (731609)<br>
+        Francisco Josué Ramírez Avila (747819)<br>
+        JP Mendez
+    </div>
+
+    <div style="margin-top:70px;"><strong>2026 Otoño</strong></div>
+</section>
+
+<div class="toc">
+    <strong>Contenido</strong>
+    <ol>
+        <li><a href="#intro">Introducción</a></li>
+        <li><a href="#descripcion">Descripción general del activo y del negocio</a></li>
+        <li><a href="#estados">Análisis de estados financieros</a></li>
+        <li><a href="#indicadores">Indicadores financieros clave</a></li>
+        <li><a href="#eps">Cálculo de EPS (trimestral 2019-2025)</a></li>
+        <li><a href="#dividendos">Dividendos y Split</a></li>
+        <li><a href="#riesgos">Identificación de los tipos de riesgos</a></li>
+        <li><a href="#conclusion">Conclusión</a></li>
+    </ol>
+</div>
+
+<h2 id="intro">1. Introducción</h2>
+<p>En esta primera parte del proyecto se analiza a Banco del Bajío (BanBajío) con el objetivo de entender su negocio y los principales factores que pueden influir en el comportamiento de su acción. Para esto se revisa su actividad y posición dentro del sistema bancario mexicano, su evolución financiera, indicadores de rentabilidad, comportamiento del EPS, política de dividendos y los principales riesgos a los que está expuesto. Con este análisis se busca tener una base financiera y económica del banco antes de realizar posteriormente un análisis cuantitativo del riesgo.</p>
+
+<h2 id="descripcion">2. Descripción general del activo y del negocio</h2>
+<p>Banco del Bajío, S.A., Institución de Banca Múltiple es un banco mexicano que empezó a operar en 1994 en León, Guanajuato. Nació por iniciativa de un grupo de empresarios de esa región y de la Ciudad de México, con la idea de apoyar el crecimiento económico del centro y norte del país. Desde el inicio, el banco se ha enfocado en dar crédito a empresas, sobre todo a negocios del campo (agronegocios) y a pequeñas y medianas empresas. En 2017 empezó a cotizar en la Bolsa Mexicana de Valores con la clave BBAJIO.</p>
+
+<p>El banco trabaja principalmente en dos áreas: Banca Empresarial y Banca Comercial. Ofrece cuentas de ahorro, créditos personales, hipotecas, créditos para auto, tarjetas de crédito, y también productos más especializados como arrendamiento, factoraje, seguros y servicios de banca digital a través de BajioNet.</p>
+
+<p>BanBajío opera en 29 de los 32 estados de México, con más de 327 sucursales, más de mil ejecutivos y una red de más de 17 mil cajeros automáticos compartidos con otros bancos. Atiende a más de un millón de clientes. Sus oficinas centrales están en León, Guanajuato y tiene alrededor de 6,400 empleados.</p>
+
+<p>Según datos de la CNBV, BanBajío es el tercer banco más grande en activos entre los bancos mexicanos que no pertenecen a un grupo extranjero, el quinto en créditos a empresas, el octavo en préstamos en general y el noveno en captación de dinero de clientes. Compite con bancos grandes y con otros bancos mexicanos enfocados también en empresas y pymes.</p>
+
+<p>En abril de 2026, el director general del banco, Edgardo del Rincón Gutiérrez, renunció después de siete años en el puesto. Lo sustituyó, desde el 1 de mayo de 2026, Iván Lomelí León, quien ya trabajaba en el banco desde 2022. En cuanto a resultados financieros, en el primer trimestre de 2025 el banco creció su cartera de crédito de forma importante, mantuvo su morosidad baja (cerca de 1.5%) y tuvo un buen nivel de capital, aunque con menor ganancia que en periodos anteriores por la baja en las tasas de interés.</p>
+
+<h2 id="estados">3. Análisis de estados financieros</h2>
+<p>Entre 2023 y 2025, los ingresos de BanBajío subieron primero y luego bajaron: pasaron de 45,140 a 49,085 millones de pesos en 2024, y cayeron a 46,025 millones en 2025, sobre todo porque las tasas de interés bajaron en el país.</p>
+
+<p>Para saber qué tan bien gana dinero el banco, se usan tres tipos de margen:</p>
+<ul>
+    <li><strong>Margen bruto:</strong> es lo que le queda al banco después de pagarle a sus ahorradores y antes de impuestos. Bajó de 49.2% a 46.9%.</li>
+    <li><strong>Margen operativo:</strong> es lo que le queda después de pagar también sus gastos del día a día, como sueldos y sucursales. Bajó de 33.2% a 26.4%.</li>
+    <li><strong>Margen neto:</strong> es la ganancia final después de todo, incluyendo impuestos. Bajó de 24.4% a 19.7%.</li>
+</ul>
+
+<p>Los tres márgenes bajaron porque los gastos del banco crecieron más rápido que sus ingresos y también aumentaron las reservas por créditos que podrían no pagarse. Por eso la ganancia bajó de 11,013 a 9,079 millones de pesos.</p>
+
+<p>Sobre las deudas y el capital del banco, BanBajío se financia principalmente con el dinero que la gente deposita. Presta más de lo que capta en depósitos, alrededor de 108-109%, por lo que también usa otras fuentes de dinero. Aun así, su nivel de capital se mantuvo saludable, entre 15% y 16%, muy por arriba de lo mínimo requerido. Esto significa que el banco mantiene un nivel de capital suficiente para absorber riesgos y respaldar su operación.</p>
+
+<h2 id="indicadores">4. Indicadores financieros clave</h2>
+
+<h3>ROE (Retorno sobre el Patrimonio)</h3>
+<p>En 2025, el ROE de BanBajío fue aproximadamente de 15.8%, lo que significa que por cada peso de capital contable, el banco generó 15.8 centavos de utilidad neta. Este indicador bajó respecto a años anteriores: 18.2% en 2024 y 19.1% en 2023. La caída refleja una menor rentabilidad, principalmente por el ambiente de tasas de interés más bajas.</p>
+
+<h3>ROA (Retorno sobre los Activos)</h3>
+<p>En 2025, el ROA de BanBajío fue de aproximadamente 1.48%, es decir, el banco generó 1.48 pesos de utilidad por cada 100 pesos de activos. Este indicador también bajó frente a 2024 (1.67%) y 2023 (1.88%). La tendencia decreciente sugiere una menor eficiencia en la generación de ganancias con sus activos.</p>
+
+<h3>Deuda/Capital</h3>
+<p>BanBajío se financia principalmente con depósitos de clientes. Al cierre de 2025, la relación deuda/capital era de aproximadamente 5.8 veces. Esto significa que por cada peso de capital, el banco tiene 5.8 pesos de deuda. Este nivel es común dentro de la operación bancaria y debe analizarse junto con la capitalización y la calidad de la cartera.</p>
+
+<h3>Deuda/EBITDA</h3>
+<p>Este indicador es menos representativo para bancos que para empresas industriales, ya que el EBITDA no es una medida estándar para instituciones financieras. Como aproximación, se observa que los ingresos operativos continúan cubriendo la estructura de costos, aunque con menor holgura que en años anteriores debido a la presión en los márgenes.</p>
+
+<h3>Margen EBITDA</h3>
+<p>De forma aproximada, el margen operativo de BanBajío fue de 26.4% en 2025, frente a 33.2% en 2024. La caída refleja que los gastos crecieron más que los ingresos y que la reducción de tasas de interés presionó el margen financiero.</p>
+
+<div class="highlight">
+    En conjunto, los indicadores muestran que BanBajío enfrentó presión en su rentabilidad durante 2025. Aunque sus niveles siguen siendo aceptables para el sector, la tendencia decreciente indica que el banco debe cuidar su eficiencia operativa y diversificar sus fuentes de ingreso.
+</div>
+
+<h2 id="eps">5. Cálculo de EPS (Trimestral 2019-2025)</h2>
+<p>El Earnings Per Share (EPS) o Utilidad por Acción es un indicador que muestra cuánta utilidad neta corresponde a cada acción en circulación. Para BanBajío, el análisis trimestral de EPS desde 2019 permite identificar tendencias de rentabilidad y estabilidad.</p>
+
+<p>Durante 2019-2020, en plena pandemia, el EPS mostró una volatilidad importante. En el primer semestre de 2020 cayó debido a la incertidumbre económica y al aumento de provisiones por crédito vencido. A partir del segundo semestre comenzó una recuperación gradual.</p>
+
+<p>De 2021 a 2023, el EPS mostró una tendencia alcista sostenida, impulsada por la recuperación económica, un ambiente de tasas más altas, mayor demanda de crédito y una mejora en la calidad de la cartera.</p>
+
+<p>En 2023, el EPS alcanzó máximos cercanos a $2.15 por acción en el trimestre más fuerte. Durante 2024 se mantuvo relativamente estable, con valores entre $1.85 y $2.05 por acción.</p>
+
+<p>En 2025, el EPS mostró desaceleración:</p>
+<ul>
+    <li>Q1 2025: aproximadamente $1.68 por acción.</li>
+    <li>Q2 2025: aproximadamente $1.52 por acción.</li>
+</ul>
+
+<p>Esta caída refleja el impacto de menores tasas de interés. Cuando la tasa de referencia baja, el banco puede tener menos margen entre lo que cobra por sus créditos y lo que paga por captar recursos.</p>
+
+<p>La evolución del EPS confirma que BanBajío es sensible al ciclo de tasas de interés y al entorno económico. Esto también es relevante para entender el comportamiento esperado de la acción BBAJIO, ya que cambios en las expectativas sobre tasas pueden influir directamente en su precio.</p>
+
+<h2 id="dividendos">6. Dividendos y Split</h2>
+<p>BanBajío sí ha mantenido el pago de dividendos a sus accionistas, aunque el porcentaje que reparte no es fijo y depende de lo que apruebe cada año la Asamblea de Accionistas.</p>
+
+<p>En 2023 se destinó a dividendos el 60% de la utilidad obtenida en 2022, mientras que en 2024 el porcentaje bajó a 20% de la utilidad de 2023. Para 2025 volvió a aumentar, ya que se aprobó repartir 50% de la utilidad de 2024, por un total aproximado de $5,344 millones de pesos. Este pago se dividió en dos partes iguales, una en mayo y otra en septiembre, cada una por aproximadamente $2.25 por acción.</p>
+
+<p>Para 2026 se mantuvo un esquema parecido. De la utilidad neta de 2025, que fue de aproximadamente $9,077 millones, se aprobó destinar el 50% al pago de dividendos, equivalente a $4,538 millones. El pago también se dividió en dos exhibiciones, una en mayo y otra programada para septiembre de 2026, por aproximadamente $1.91 por acción en cada pago.</p>
+
+<p>En cuanto a los splits, BanBajío realizó uno en 2017, en proporción 5 a 1, antes de su oferta pública inicial. Esto significó que por cada acción que tenía un accionista recibió cuatro adicionales, manteniendo el mismo valor económico de su participación. Después de este movimiento, el banco comenzó a cotizar en la BMV el 8 de junio de 2017. En la información corporativa revisada no se identifica otro split posterior.</p>
+
+<h2 id="riesgos">7. Identificación de los tipos de riesgos</h2>
+<p>Por el tipo de negocio de BanBajío, uno de sus riesgos más importantes es el <strong>riesgo de crédito</strong>, ya que gran parte de sus activos son préstamos. Al cierre del segundo trimestre de 2026, alrededor del 86.1% de su cartera estaba formada por créditos a empresas, por lo que un deterioro en la capacidad de pago de estas podría aumentar la cartera vencida y obligar al banco a crear mayores reservas, afectando directamente sus utilidades. También existe un riesgo de concentración por el peso que tiene el crédito empresarial dentro de su cartera.</p>
+
+<p>Otro riesgo importante es el <strong>riesgo de mercado</strong>, principalmente por los movimientos en las tasas de interés. Para un banco esto afecta tanto lo que cobra por prestar como lo que paga por captar dinero. Durante el segundo trimestre de 2026, el margen de interés neto de BanBajío bajó a 5.4%, en parte por las reducciones en la tasa de referencia. También existe exposición, aunque menor, a movimientos en el tipo de cambio y otros precios financieros.</p>
+
+<p>Dentro de los <strong>riesgos macroeconómicos</strong>, una desaceleración de la economía mexicana podría reducir la demanda de crédito y dificultar el pago de empresas y pymes. La inflación, las tasas de interés y movimientos fuertes en el tipo de cambio también pueden afectar tanto al banco como a sus acreditados.</p>
+
+<p>Finalmente están los <strong>riesgos operativos</strong>, donde entran errores en procesos internos, fraudes, problemas legales y fallas tecnológicas. Para BanBajío, el riesgo tecnológico es especialmente importante porque una interrupción de sus sistemas, banca digital o un problema de ciberseguridad podría generar pérdidas y afectar la confianza de los clientes.</p>
+
+<p>En conjunto, BanBajío tiene un perfil principalmente relacionado con crédito empresarial, movimientos en tasas de interés y funcionamiento operativo del banco. Si alguno de estos riesgos aumenta de manera importante, podría afectar sus utilidades, el pago de dividendos y eventualmente el precio de la acción BBAJIO.</p>
+
+<h2 id="conclusion">8. Conclusión</h2>
+<p>Después de analizar la información de BanBajío, consideramos que es un banco sólido y actualmente en una etapa de consolidación, más que de crecimiento acelerado. Mantiene una posición importante en el crédito empresarial en México, niveles bajos de morosidad y una capitalización saludable. Sin embargo, durante 2025 se observó una disminución en su rentabilidad, ya que tanto el ROE como el ROA y los márgenes bajaron respecto a años anteriores.</p>
+
+<p>Uno de los factores que más explica esta caída es el entorno de menores tasas de interés, porque afecta directamente el margen que obtiene el banco entre los créditos que otorga y el costo de sus fuentes de financiamiento. A esto se suma que BanBajío tiene una fuerte exposición al crédito empresarial, por lo que una desaceleración económica o un aumento en el incumplimiento de empresas y pymes podría afectar sus resultados.</p>
+
+<p>A pesar de estos riesgos, el banco sigue mostrando estabilidad financiera y capacidad para generar utilidades y pagar dividendos. Por esta razón, esperaríamos que la acción BBAJIO tenga una volatilidad moderada, pero con una sensibilidad importante a cambios en las tasas de interés, las expectativas sobre la economía mexicana y la calidad de su cartera de crédito. En las siguientes etapas del proyecto será importante comprobar si estos factores también se reflejan en el comportamiento histórico del precio de la acción.</p>
+
+<div class="footer-note">
+    Proyecto Final Parte 1 — Análisis de Riesgo — Otoño 2026
+</div>
+
+</div>
+</body>
+</html>
