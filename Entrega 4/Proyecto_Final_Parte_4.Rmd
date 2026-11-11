@@ -1,0 +1,1699 @@
+---
+title: "Proyecto Final - Parte 4: Modelos de Varianza"
+subtitle: "Banco del Bajío (BBAJIOO.MX)"
+author: "Jeronimo Rojas Alvarado (731609), Alan Jesús Hernández Soto (752714), Francisco Josué Ramírez Avila (747819), JP Mendez"
+date: "10 de noviembre de 2026"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    theme: flatly
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 9,
+  fig.height = 4.8,
+  out.width = "100%"
+)
+options(scipen = 999, knitr.kable.NA = "—")
+```
+
+```{r paquetes, include=FALSE}
+paquetes <- c("quantmod", "xts", "zoo", "TTR", "rugarch", "forecast", "knitr")
+faltan <- paquetes[!vapply(paquetes, requireNamespace, logical(1), quietly = TRUE)]
+if (length(faltan) > 0) {
+  stop("Faltan paquetes. Ejecuta en la consola: install.packages(c(",
+       paste0("\"", faltan, "\"", collapse = ", "), ")) y vuelve a compilar.")
+}
+suppressPackageStartupMessages({
+  library(quantmod)
+  library(xts)
+  library(zoo)
+  library(TTR)
+  library(rugarch)
+  library(forecast)
+  library(knitr)
+})
+```
+
+```{r funciones, include=FALSE}
+# ---- Formato de números y fechas para el texto ----
+meses_es <- c("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+              "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+fecha_es <- function(d) {
+  d <- as.Date(d)
+  paste(as.integer(format(d, "%d")), "de", meses_es[as.integer(format(d, "%m"))],
+        "de", format(d, "%Y"))
+}
+pct  <- function(x, d = 2) paste0(formatC(100 * x, format = "f", digits = d), "%")
+num  <- function(x, d = 4) formatC(x, format = "f", digits = d, big.mark = ",")
+pval <- function(p) {
+  ifelse(is.na(p), "NA",
+         ifelse(p < 0.001, "< 0.001", formatC(p, format = "f", digits = 3)))
+}
+lista_es <- function(x) {
+  x <- unname(as.character(x))
+  if (length(x) == 0) return("ninguno")
+  if (length(x) == 1) return(x)
+  paste(paste(x[-length(x)], collapse = ", "), "y", x[length(x)])
+}
+plural <- function(n, sing, plur) if (n == 1) sing else plur
+mejor_min <- function(v) names(v)[which.min(v)]
+mejor_max <- function(v) names(v)[which.max(v)]
+
+# ---- Momentos muestrales ----
+asimetria <- function(x) { x <- x - mean(x); mean(x^3) / mean(x^2)^1.5 }
+curtosis  <- function(x) { x <- x - mean(x); mean(x^4) / mean(x^2)^2 }
+
+# ---- Prueba ARCH-LM (función de apoyo vista en clase) ----
+ArchLM <- function(x, lags = 20, demean = FALSE) {
+  x <- na.omit(as.numeric(x))
+  if (demean) {
+    x <- x - mean(x)
+  }
+  mat <- embed(x^2, lags + 1)
+  aux <- lm(mat[, 1] ~ mat[, -1])
+  R2 <- summary(aux)$r.squared
+  T_aux <- length(residuals(aux))
+  statistic <- T_aux * R2
+  p_value <- pchisq(statistic, df = lags, lower.tail = FALSE)
+  list(statistic = statistic, df = lags, p.value = p_value)
+}
+
+# ---- Funciones de pérdida en escala de varianza (como en clase) ----
+# y = r^2 (varianza observada), f = pronóstico de varianza
+metricas_var <- function(y, f) {
+  ok <- is.finite(y) & is.finite(f) & f > 0
+  y <- y[ok]
+  f <- f[ok]
+  c(RMSE = sqrt(mean((y - f)^2)),
+    MAE = mean(abs(y - f)),
+    QLIKE = mean(log(f) + y / f),
+    Relativo = mean(abs(1 - y / f)))
+}
+
+# ---- Prueba de Kupiec (cobertura incondicional del VaR) ----
+kupiec <- function(excede, p = 0.05) {
+  excede <- excede[!is.na(excede)]
+  n_obs <- length(excede)
+  x <- sum(excede)
+  pi_hat <- x / n_obs
+  ll0 <- (n_obs - x) * log(1 - p) + x * log(p)
+  ll1 <- (if (x < n_obs) (n_obs - x) * log(1 - pi_hat) else 0) +
+    (if (x > 0) x * log(pi_hat) else 0)
+  LR <- max(0, -2 * (ll0 - ll1))
+  c(n = n_obs, x = x, tasa = pi_hat, LR = LR,
+    p = pchisq(LR, df = 1, lower.tail = FALSE))
+}
+
+# ---- Año de publicación de los paquetes (para las referencias) ----
+anio_paquete <- function(p) {
+  d <- tryCatch(utils::packageDescription(p)[["Date/Publication"]], error = function(e) NULL)
+  if (is.null(d) || is.na(d) || !nzchar(d)) {
+    d <- tryCatch(utils::packageDescription(p)[["Date"]], error = function(e) NULL)
+  }
+  a <- if (is.null(d) || is.na(d)) "" else substr(d, 1, 4)
+  if (grepl("^[0-9]{4}$", a)) a else "s. f."
+}
+anio_quantmod <- anio_paquete("quantmod")
+anio_rugarch  <- anio_paquete("rugarch")
+anio_R        <- R.version$year
+
+# ---- Colores de los modelos y sombreado del periodo fuera de muestra ----
+col_mod <- c(MA = "#E69F00", EWMA = "#0072B2", DDEWMA = "#009E73", GARCH = "#D55E00")
+sombrear_octubre <- function() {
+  u <- par("usr")
+  rect(as.numeric(as.Date("2026-10-01")), u[3], as.numeric(as.Date("2026-10-30")), u[4],
+       col = adjustcolor("#D55E00", alpha.f = 0.15), border = NA)
+}
+```
+
+# Introducción
+
+En las tres entregas anteriores (Rojas Alvarado et al., 2026) construimos el perfil de riesgo de Banco del Bajío (BanBajío). En la Parte 1 vimos que es un banco orientado al crédito empresarial cuya rentabilidad depende del ciclo de tasas de interés. En la Parte 2 mostramos que el precio de la acción responde a choques que los inversionistas no controlan, como la pandemia, el ciclo de alzas y recortes de Banxico y las elecciones de 2024, con un máximo *drawdown* cercano a 68%. En la Parte 3 rechazamos la normalidad de los rendimientos (curtosis de 6.73) y encontramos que la volatilidad anual cambia de un año a otro. Este último hallazgo contradice el supuesto de volatilidad constante del Movimiento Browniano Geométrico y es el punto de partida de esta entrega.
+
+El propósito de la Parte 4 es modelar la volatilidad como una cantidad que cambia en el tiempo y usar esos modelos para tomar una decisión de medición de riesgo. Estimamos los modelos de varianza vistos en clase (Ruiz, 2026b, 2026c, 2026d, 2026e, 2026f): promedios móviles (PM), EWMA (J.P. Morgan/Reuters, 1996), *Data Driven* EWMA (DDEWMA) y ARCH/GARCH (Engle, 1982; Bollerslev, 1986) con una ecuación ARMA para la media. Todos se estiman exclusivamente con información de enero de 2021 al 30 de septiembre de 2026, y después evaluamos su capacidad predictiva fuera de muestra, del 5 al 30 de octubre de 2026, contra la volatilidad realizada.
+
+El documento se organiza así. La sección 2 describe los datos y estima cada modelo, con la razón de la selección de sus parámetros ($m$, $\lambda$, $\alpha$ y órdenes ARMA y ARCH/GARCH). La sección 3 evalúa los pronósticos diarios de octubre con la tabla de estimaciones diarias construida en clase. La sección 4 responde qué modelo captura mejor la alta volatilidad, cuál reacciona más rápido, cuál es más estable y cuál tiende a sobreestimar o subestimar. La sección 5 concluye y elige, desde una perspectiva financiera, el modelo que usaríamos. El código completo está en el anexo.
+
+# Estimación de modelos
+
+## Datos y diseño de la estimación
+
+```{r datos, include=FALSE}
+clave <- "BBAJIOO.MX"
+datos <- tryCatch(
+  getSymbols(clave, src = "yahoo", from = "2020-12-01", to = "2026-10-31",
+             auto.assign = FALSE),
+  error = function(e) stop("No se pudieron descargar los datos de Yahoo Finance: ",
+                           conditionMessage(e))
+)
+datos <- datos[!duplicated(index(datos)), ]
+precios <- na.omit(merge(Ad(datos), Cl(datos)))
+colnames(precios) <- c("ajustado", "cierre")
+precios <- precios[as.numeric(precios$ajustado) > 0 & as.numeric(precios$cierre) > 0, ]
+
+fechas_px <- as.Date(index(precios))
+px_aj <- as.numeric(precios$ajustado)
+px_cl <- as.numeric(precios$cierre)
+
+# Rendimientos logarítmicos con precio ajustado (los que se modelan) y con precio de cierre
+r_aj_v <- diff(log(px_aj))
+r_cl_v <- diff(log(px_cl))
+fechas_r <- fechas_px[-1]
+
+r_xts <- xts(r_aj_v, order.by = fechas_r)
+colnames(r_xts) <- "r"
+r_todo <- r_xts["2021-01-01/2026-10-30"]
+
+# Muestras
+fin_est  <- as.Date("2026-09-30")
+fechas   <- as.Date(index(r_todo))
+r        <- as.numeric(r_todo)
+r2       <- r^2
+r_abs    <- abs(r)
+n_total  <- length(r)
+n_est    <- sum(fechas <= fin_est)
+idx_est  <- seq_len(n_est)
+idx_post <- if (n_total > n_est) (n_est + 1):n_total else integer(0)
+idx_eval <- which(fechas >= as.Date("2026-10-05") & fechas <= as.Date("2026-10-30"))
+n_post   <- length(idx_post)
+n_eval   <- length(idx_eval)
+if (n_eval == 0) stop("La descarga no contiene datos entre el 5 y el 30 de octubre de 2026.")
+
+# Ventana común dentro de la muestra de estimación (todas las m ya tienen pronóstico)
+m_vals       <- c(5, 10, 20, 40, 60)
+n0           <- 20                      # observaciones para iniciar EWMA y DDEWMA
+inicio_comun <- max(m_vals) + 1
+idx_comun    <- inicio_comun:n_est
+corte        <- inicio_comun + floor(0.70 * length(idx_comun)) - 1
+idx_ajuste   <- inicio_comun:corte
+idx_valid    <- (corte + 1):n_est
+
+# Mayor choque de la muestra de estimación (se usa en las secciones 2 y 4)
+t_star <- idx_comun[which.max(r_abs[idx_comun])]
+eventos <- c(
+  "2024-06-03" = "el primer día hábil después de las elecciones federales del 2 de junio de 2024",
+  "2025-04-03" = "en la turbulencia global que siguió al anuncio de aranceles de Estados Unidos del 2 de abril de 2025",
+  "2025-04-04" = "en la turbulencia global que siguió al anuncio de aranceles de Estados Unidos del 2 de abril de 2025",
+  "2025-04-07" = "en la turbulencia global que siguió al anuncio de aranceles de Estados Unidos del 2 de abril de 2025"
+)
+evento_choque <- if (as.character(fechas[t_star]) %in% names(eventos)) {
+  unname(eventos[as.character(fechas[t_star])])
+} else {
+  NA_character_
+}
+
+# Fechas ex-dividendo: días en que el rendimiento ajustado y el de cierre difieren
+f_px    <- px_aj / px_cl
+dif_v   <- r_aj_v - r_cl_v
+sel_div <- which(abs(dif_v) > 0.003 & fechas_r >= as.Date("2021-01-01") &
+                   fechas_r <= as.Date("2026-10-30"))
+D_impl  <- px_cl[sel_div] * (1 - f_px[sel_div] / f_px[sel_div + 1])
+n_exdiv <- length(sel_div)
+
+# Estadísticos descriptivos de la muestra de estimación
+en_est_r <- fechas_r >= as.Date("2021-01-01") & fechas_r <= fin_est
+desc <- function(x) {
+  c(Obs = length(x), Media = 100 * mean(x), Desv = 100 * sd(x),
+    Anual = 100 * sd(x) * sqrt(252), Asim = asimetria(x), Curt = curtosis(x),
+    Min = 100 * min(x), Max = 100 * max(x))
+}
+tabla_desc <- rbind(desc(r_aj_v[en_est_r]), desc(r_cl_v[en_est_r]))
+
+texto_div <- if (n_exdiv > 0) {
+  paste0("En el periodo se identifican ", n_exdiv, " ",
+         plural(n_exdiv, "fecha", "fechas"),
+         " en las que ambas series difieren (Tabla 3). En esos días, el rendimiento con precio de cierre va de ",
+         pct(min(r_cl_v[sel_div])), " a ", pct(max(r_cl_v[sel_div])),
+         ", mientras que con el precio ajustado va de ", pct(min(r_aj_v[sel_div])),
+         " a ", pct(max(r_aj_v[sel_div])), ". La curtosis de la muestra de estimación es de ",
+         num(tabla_desc[2, "Curt"], 2), " con el cierre y de ", num(tabla_desc[1, "Curt"], 2),
+         " con el ajustado (Tabla 2)",
+         if (tabla_desc[2, "Curt"] > tabla_desc[1, "Curt"]) {
+           ": parte de las colas pesadas que se miden con el precio de cierre se debe a estos días y no a choques de mercado."
+         } else {
+           "."
+         })
+} else {
+  "En el periodo analizado Yahoo Finance no registra ajustes por dividendo, por lo que ambas series coinciden (Tabla 3)."
+}
+```
+
+Descargamos de Yahoo Finance (2026), con el paquete `quantmod` (Ryan y Ulrich, `r anio_quantmod`), los precios diarios de BBAJIOO.MX y calculamos el rendimiento logarítmico
+
+$$r_t=\ln\left(\frac{P_t}{P_{t-1}}\right),$$
+
+donde $P_t$ es el precio **ajustado** por dividendos. La descarga inicia en diciembre de 2020 para poder calcular el rendimiento del primer día hábil de 2021 y termina el 30 de octubre de 2026.
+
+**¿Por qué precio ajustado y no precio de cierre?** BanBajío reparte una parte importante de su utilidad como dividendo: 80% de la utilidad de 2022 y 60% de la de 2023, en dos pagos cada año (Bolsa Mexicana de Valores, 2023–2024). El día en que la acción empieza a cotizar sin derecho al dividendo, el precio de cierre baja aproximadamente en el monto pagado, aunque el accionista no pierde valor porque lo recibe en efectivo. Con el precio de cierre, esas caídas mecánicas aparecerían como choques de volatilidad, y el EWMA y el GARCH las tratarían como aumentos de riesgo que no existieron. El precio ajustado elimina ese efecto y es, además, el que usan los códigos de clase (`Ad()`; Ruiz, 2026a). En la Parte 3 usamos el precio de cierre porque el objetivo era simular el precio que se observa en el mercado; aquí el objetivo es modelar la varianza de los rendimientos, y para eso la serie ajustada es la adecuada. `r texto_div`
+
+Todos los parámetros se estiman con la **muestra de estimación**, del `r fecha_es(fechas[1])` al `r fecha_es(fechas[n_est])` (`r n_est` rendimientos), y quedan fijos para octubre (Figura 1). Para comparar los modelos entre sí en los mismos días, descartamos las primeras `r inicio_comun - 1` observaciones (la ventana más larga de los promedios móviles) y dividimos el resto en un tramo de **ajuste** (70%) y uno de **validación** (30%), con la misma partición 70/30 de los códigos de clase. La evaluación fuera de muestra cubre del 5 al 30 de octubre de 2026 (Tabla 1).
+
+```{r tabla-muestras}
+tabla_muestras <- data.frame(
+  Muestra = c("Estimación de parámetros",
+              "Comparación dentro de muestra: ajuste (70%)",
+              "Comparación dentro de muestra: validación (30%)",
+              "Fuera de muestra (actualización de los filtros)",
+              "Evaluación fuera de muestra (consigna)"),
+  Inicio = c(fecha_es(fechas[1]), fecha_es(fechas[inicio_comun]), fecha_es(fechas[corte + 1]),
+             fecha_es(fechas[idx_post[1]]), fecha_es(fechas[idx_eval[1]])),
+  Fin = c(fecha_es(fechas[n_est]), fecha_es(fechas[corte]), fecha_es(fechas[n_est]),
+          fecha_es(fechas[n_total]), fecha_es(fechas[max(idx_eval)])),
+  Observaciones = c(n_est, length(idx_ajuste), length(idx_valid), n_post, n_eval)
+)
+kable(tabla_muestras, caption = "Tabla 1. Muestras utilizadas", align = "lllr")
+```
+
+```{r tabla-descriptivos}
+td <- data.frame(Serie = c("Precio ajustado (serie modelada)", "Precio de cierre"),
+                 tabla_desc, check.names = FALSE)
+colnames(td) <- c("Serie", "Obs.", "Media (%)", "Desv. diaria (%)", "Vol. anual (%)",
+                  "Asimetría", "Curtosis", "Mínimo (%)", "Máximo (%)")
+kable(td, digits = c(0, 0, 4, 3, 2, 3, 2, 2, 2), row.names = FALSE,
+      caption = "Tabla 2. Rendimientos diarios en la muestra de estimación: precio ajustado vs. precio de cierre")
+```
+
+```{r tabla-exdiv}
+if (n_exdiv > 0) {
+  tx <- data.frame(
+    Fecha = format(fechas_r[sel_div], "%d/%m/%Y"),
+    `Rend. con cierre (%)` = 100 * r_cl_v[sel_div],
+    `Rend. ajustado (%)` = 100 * r_aj_v[sel_div],
+    `Dividendo implícito (MXN por acción)` = D_impl,
+    check.names = FALSE
+  )
+  kable(tx, digits = c(0, 2, 2, 2), row.names = FALSE,
+        caption = "Tabla 3. Fechas ex-dividendo detectadas (diferencia entre rendimiento ajustado y de cierre mayor a 0.3%)")
+} else {
+  kable(data.frame(Resultado = "Sin diferencias entre el precio ajustado y el de cierre en el periodo."),
+        caption = "Tabla 3. Fechas ex-dividendo detectadas")
+}
+```
+
+El dividendo implícito de la Tabla 3 se obtiene del factor de ajuste $f_t=P^{aj}_t/P^{cierre}_t$ como $D_t=P^{cierre}_{t-1}\left(1-f_{t-1}/f_t\right)$, y permite verificar que las diferencias corresponden a pagos de dividendos y no a errores de datos.
+
+```{r fig-datos, fig.height=6.5, fig.cap="Figura 1. Precio y rendimientos diarios de BBAJIOO. La línea punteada marca el 30 de septiembre de 2026 y la zona sombreada el periodo fuera de muestra."}
+par(mfrow = c(2, 1), mar = c(3, 4.5, 2.5, 1))
+sel_px <- fechas_px >= as.Date("2021-01-01")
+plot(fechas_px[sel_px], px_aj[sel_px], type = "l", col = "#0072B2", lwd = 1.3,
+     ylim = range(c(px_aj[sel_px], px_cl[sel_px])), xlab = "", ylab = "Precio (MXN)",
+     main = "BBAJIOO: precio ajustado y precio de cierre")
+lines(fechas_px[sel_px], px_cl[sel_px], col = "grey55", lwd = 1)
+sombrear_octubre()
+abline(v = fin_est, lty = 2)
+legend("topleft", c("Ajustado (serie modelada)", "Cierre"), col = c("#0072B2", "grey55"),
+       lwd = 2, bty = "n")
+plot(fechas, 100 * r, type = "l", col = "grey30", xlab = "", ylab = "Rendimiento (%)",
+     main = "Rendimientos logarítmicos diarios (precio ajustado)")
+abline(h = 0, col = "grey70")
+sombrear_octubre()
+abline(v = fin_est, lty = 2)
+```
+
+**Medida de referencia.** Como indica la consigna, la volatilidad realizada de cada día es $|r_t|=\sqrt{r_t^2}$. Conviene tener presentes dos propiedades. Primero, $r_t^2$ es un estimador insesgado de la varianza condicional, $E_{t-1}[r_t^2]\approx\sigma_t^2$, por lo que las métricas de clase se calculan en escala de varianza. Segundo, $|r_t|$ subestima en promedio la volatilidad, porque $E_{t-1}|r_t|=\rho\,\sigma_t$, con $\rho=\sqrt{2/\pi}\approx0.798$ bajo normalidad (es el mismo $\rho$ del DDEWMA). Por eso, al analizar sobre o subestimación también comparamos contra $Z_t=|r_t-\bar r|/\hat\rho$, cuyo valor esperado sí es $\sigma_t$.
+
+**Funciones de pérdida.** Con $y_t=r_t^2$ y $f_t=\hat\sigma^2_{t|t-1}$, usamos las mismas métricas de los códigos de clase:
+
+$$RMSE=\sqrt{\frac1H\sum_t (y_t-f_t)^2},\qquad MAE=\frac1H\sum_t |y_t-f_t|,$$
+
+$$QLIKE=\frac1H\sum_t\left(\ln f_t+\frac{y_t}{f_t}\right),\qquad Relativo=\frac1H\sum_t\left|1-\frac{y_t}{f_t}\right|.$$
+
+El RMSE en escala de varianza y el QLIKE ordenan correctamente los pronósticos aunque la referencia sea ruidosa, como $r_t^2$ (Patton, 2011). El QLIKE, además, es menos sensible a los días extremos y penaliza más subestimar que sobreestimar, una propiedad deseable en gestión de riesgos.
+
+## Promedios móviles
+
+El promedio móvil con pesos constantes estima la varianza de mañana como el promedio de los últimos $m$ rendimientos al cuadrado:
+
+$$\hat\sigma^2_{t|t-1}=\frac{1}{m}\sum_{j=1}^{m} r^2_{t-j},\qquad \hat\sigma_{t|t-1}=\sqrt{\hat\sigma^2_{t|t-1}}.$$
+
+Cada rendimiento dentro de la ventana pesa $1/m$ y los anteriores pesan cero (Ruiz, 2026f). Como en la función de clase `build_ma_test_forecasts` (Ruiz, 2026a), el promedio calculado con información hasta $t-1$ es el pronóstico para $t$. Estimamos cinco ventanas con interpretación financiera: $m=5$ (una semana bursátil), $m=10$ (dos semanas), $m=20$ (un mes), $m=40$ (dos meses) y $m=60$ (un trimestre).
+
+```{r ma-calculo, include=FALSE}
+ma_var <- function(r2, m) {
+  sma <- as.numeric(TTR::SMA(r2, n = m))   # promedio de r^2 de t-m+1 a t
+  c(NA, sma[-length(sma)])                 # pronóstico para t con información hasta t-1
+}
+var_ma <- sapply(m_vals, function(m) ma_var(r2, m))
+colnames(var_ma) <- paste0("m=", m_vals)
+vol_ma <- sqrt(var_ma)
+
+tabla_metricas_ma <- function(idx) {
+  out <- t(sapply(seq_along(m_vals), function(j) metricas_var(r2[idx], var_ma[idx, j])))
+  rownames(out) <- paste0("m = ", m_vals)
+  out
+}
+met_aj  <- tabla_metricas_ma(idx_ajuste)
+met_val <- tabla_metricas_ma(idx_valid)
+
+# Regla de selección: más criterios ganados en validación; desempate por rango promedio
+ganador_val <- apply(met_val, 2, which.min)
+victorias   <- sapply(seq_along(m_vals), function(j) sum(ganador_val == j))
+rango_m     <- rowMeans(cbind(apply(met_val, 2, rank), apply(met_aj, 2, rank)))
+orden_m     <- order(-victorias, rango_m)
+j_opt       <- orden_m[1]
+m_opt       <- m_vals[j_opt]
+crit_gana   <- colnames(met_val)[ganador_val == j_opt]
+
+v_comun <- vol_ma[idx_comun, , drop = FALSE]
+efecto_ventana <- data.frame(
+  m = m_vals,
+  Media = 100 * colMeans(v_comun),
+  Desv = 100 * apply(v_comun, 2, sd),
+  Minimo = 100 * apply(v_comun, 2, min),
+  Maximo = 100 * apply(v_comun, 2, max),
+  DE_cambio = 100 * apply(v_comun, 2, function(x) sd(diff(x))),
+  Mayor_caida = 100 * apply(v_comun, 2, function(x) -min(diff(x))),
+  Corr = apply(v_comun, 2, function(x) cor(x, r_abs[idx_comun]))
+)
+desc_m <- c("5" = "una semana bursátil", "10" = "dos semanas bursátiles",
+            "20" = "aproximadamente un mes bursátil", "40" = "aproximadamente dos meses bursátiles",
+            "60" = "aproximadamente un trimestre bursátil")
+logica_m <- if (m_opt <= 10) {
+  "Es una ventana corta, que incorpora con rapidez noticias como reportes trimestrales o decisiones de Banxico, a costa de estimaciones más ruidosas."
+} else if (m_opt <= 20) {
+  "Equilibra reacción y estabilidad: un mes bursátil basta para registrar un cambio de régimen sin reaccionar de más a un rendimiento aislado."
+} else {
+  "Privilegia la estabilidad: filtra el ruido diario, aunque reacciona con retraso cuando empieza un episodio de estrés."
+}
+j5 <- which(m_vals == 5)
+j60 <- which(m_vals == 60)
+m_corr_max <- m_vals[which.max(efecto_ventana$Corr)]
+```
+
+```{r fig-ma, fig.height=8, fig.cap="Figura 2. Volatilidad diaria estimada con promedios móviles para distintas ventanas (misma escala en los cinco paneles). En naranja, la ventana óptima."}
+par(mfrow = c(3, 2), mar = c(3, 4.2, 2.5, 1))
+plot(fechas[idx_est], 100 * r_abs[idx_est], type = "h", col = "grey60", xlab = "",
+     ylab = "%", main = "Volatilidad realizada |r|")
+ylim_ma <- c(0, 100 * max(vol_ma[idx_est, ], na.rm = TRUE))
+for (j in seq_along(m_vals)) {
+  plot(fechas[idx_est], 100 * vol_ma[idx_est, j], type = "l",
+       col = if (m_vals[j] == m_opt) "#D55E00" else "#0072B2", lwd = 1.2,
+       ylim = ylim_ma, xlab = "", ylab = "%",
+       main = paste0("Promedio móvil, m = ", m_vals[j],
+                     if (m_vals[j] == m_opt) " (óptima)" else ""))
+}
+```
+
+```{r tabla-ma-ventana}
+tv <- efecto_ventana
+colnames(tv) <- c("m", "Media (%)", "Desv. est. (%)", "Mínimo (%)", "Máximo (%)",
+                  "DE del cambio diario (pp)", "Mayor caída diaria (pp)", "Corr. con |r|")
+kable(tv, digits = c(0, 3, 3, 3, 3, 4, 3, 3), row.names = FALSE,
+      caption = "Tabla 4. Efecto del tamaño de la ventana sobre la volatilidad estimada (muestra común de estimación)")
+```
+
+**Cómo cambia la estimación conforme aumenta la ventana.** Al pasar de $m=5$ a $m=60$ (Tabla 4), la desviación estándar del cambio diario de la volatilidad estimada `r if (efecto_ventana$DE_cambio[j60] < efecto_ventana$DE_cambio[j5]) "baja" else "pasa"` de `r num(efecto_ventana$DE_cambio[j5], 3)` a `r num(efecto_ventana$DE_cambio[j60], 3)` puntos porcentuales (pp) y el máximo estimado `r if (efecto_ventana$Maximo[j60] < efecto_ventana$Maximo[j5]) "baja" else "pasa"` de `r num(efecto_ventana$Maximo[j5], 2)`% a `r num(efecto_ventana$Maximo[j60], 2)`%. La serie se suaviza y los picos se aplanan porque cada choque se diluye entre más observaciones. El costo es el rezago: con ventanas largas la estimación tarda en subir cuando empieza un episodio de estrés y tarda en bajar cuando termina (Figura 2). Además, todas las ventanas presentan el *efecto fantasma*: cuando un rendimiento extremo sale de la ventana, la volatilidad estimada cae de golpe aunque el mercado no haya cambiado. La mayor caída diaria va de `r num(efecto_ventana$Mayor_caida[j5], 2)` pp con $m=5$ a `r num(efecto_ventana$Mayor_caida[j60], 2)` pp con $m=60$. Por último, la ventana cuya estimación se mueve más de cerca con $|r_t|$ es $m=$ `r m_corr_max` (correlación de `r num(max(efecto_ventana$Corr), 3)`).
+
+**Selección de $m$.** Seguimos el criterio de clase (Ruiz, 2026a): comparar las funciones de pérdida y elegir la ventana que minimiza la mayoría de ellas. Como la consigna pide considerar ajuste y capacidad predictiva, calculamos las métricas en el tramo de ajuste y en el de validación (Tabla 5). Damos prioridad a la validación, que es el tramo más reciente y el más parecido al periodo de evaluación, y desempatamos con el rango promedio en los ocho criterios (Tabla 6).
+
+```{r tabla-ma-metricas}
+tm <- data.frame(
+  m = m_vals,
+  met_aj[, "RMSE"] * 1e4, met_aj[, "MAE"] * 1e4, met_aj[, "QLIKE"], met_aj[, "Relativo"],
+  met_val[, "RMSE"] * 1e4, met_val[, "MAE"] * 1e4, met_val[, "QLIKE"], met_val[, "Relativo"]
+)
+colnames(tm) <- c("m", "RMSE (aj.)", "MAE (aj.)", "QLIKE (aj.)", "Relativo (aj.)",
+                  "RMSE (val.)", "MAE (val.)", "QLIKE (val.)", "Relativo (val.)")
+kable(tm, digits = c(0, 3, 3, 4, 3, 3, 3, 4, 3), row.names = FALSE,
+      caption = "Tabla 5. Errores de pronóstico de los promedios móviles en escala de varianza (RMSE y MAE en %²; aj. = ajuste, val. = validación)")
+```
+
+```{r tabla-ma-seleccion}
+ts_m <- data.frame(
+  m = m_vals,
+  `Criterios ganados en validación (de 4)` = victorias,
+  `Rango promedio (8 criterios)` = rango_m,
+  `Selección` = ifelse(m_vals == m_opt, "Óptima", ""),
+  check.names = FALSE
+)
+kable(ts_m, digits = c(0, 0, 2, 0), row.names = FALSE,
+      caption = "Tabla 6. Regla de selección de la ventana óptima")
+```
+
+**Razón de la selección.** Elegimos $m^*=$ `r m_opt` (`r desc_m[as.character(m_opt)]`) porque `r if (victorias[j_opt] > 0) paste0("es la ventana con menor error en ", victorias[j_opt], " de los 4 criterios de validación (", lista_es(crit_gana), ") y tiene un rango promedio de ", num(rango_m[j_opt], 2), " en los ocho criterios") else paste0("tiene el mejor rango promedio en los ocho criterios (", num(rango_m[j_opt], 2), ")")`. `r logica_m` Este será el promedio móvil que comparemos con los demás modelos.
+
+## Modelo EWMA
+
+El EWMA asigna pesos que decrecen geométricamente con la antigüedad del dato (Hull, 2018):
+
+$$\hat\sigma^2_{t|t-1}=(1-\lambda)\sum_{j=1}^{\infty}\lambda^{j-1}r^2_{t-j}\quad\Longleftrightarrow\quad \hat\sigma^2_{t|t-1}=(1-\lambda)\,r^2_{t-1}+\lambda\,\hat\sigma^2_{t-1|t-2},\qquad 0<\lambda<1.$$
+
+Iniciamos la recursión con el promedio de los primeros 20 rendimientos al cuadrado, como sugiere la presentación de máxima verosimilitud, y estimamos $\lambda$ por máxima verosimilitud, como en clase (Ruiz, 2026d). Bajo $r_t\mid\mathcal F_{t-1}\sim N(0,\sigma_t^2)$:
+
+$$\ell(\lambda)=-\frac12\sum_{t}\left[\ln(2\pi)+\ln\hat\sigma^2_{t}(\lambda)+\frac{r_t^2}{\hat\sigma^2_{t}(\lambda)}\right].$$
+
+Como $\lambda$ entra de forma recursiva y no hay solución cerrada, maximizamos $\ell(\lambda)$ numéricamente con `optimize()` en el intervalo $(0.001,\ 0.9999)$, el mismo del código de clase. La vida media de un choque es $\ln(0.5)/\ln\lambda$ días.
+
+```{r ewma-calculo, include=FALSE}
+ewma_var <- function(r2, lambda, n0 = 20) {
+  n <- length(r2)
+  s2 <- rep(NA_real_, n)
+  s2[n0 + 1] <- mean(r2[1:n0])
+  for (t in (n0 + 2):n) {
+    s2[t] <- (1 - lambda) * r2[t - 1] + lambda * s2[t - 1]
+  }
+  s2
+}
+loglik_ewma <- function(lambda, r2, idx) {
+  s2 <- ewma_var(r2, lambda)
+  -0.5 * sum(log(2 * pi) + log(s2[idx]) + r2[idx] / s2[idx])
+}
+
+r2_est <- r2[idx_est]
+idx_ll <- (n0 + 1):n_est
+opt_ewma <- optimize(function(l) loglik_ewma(l, r2_est, idx_ll),
+                     interval = c(0.001, 0.9999), maximum = TRUE)
+# Perfil de la verosimilitud (para la gráfica y para verificar el óptimo)
+lambda_grid <- seq(max(0.50, min(0.80, opt_ewma$maximum - 0.05)),
+                   min(0.9990, max(0.9975, opt_ewma$maximum + 0.002)), length.out = 120)
+ll_grid <- sapply(lambda_grid, loglik_ewma, r2 = r2_est, idx = idx_ll)
+if (max(ll_grid) > opt_ewma$objective + 1e-8) {
+  l0 <- lambda_grid[which.max(ll_grid)]
+  opt_ewma <- optimize(function(l) loglik_ewma(l, r2_est, idx_ll),
+                       interval = c(max(0.001, l0 - 0.01), min(0.9999, l0 + 0.01)),
+                       maximum = TRUE)
+}
+lambda_opt  <- opt_ewma$maximum
+ll_opt      <- opt_ewma$objective
+ll_094      <- loglik_ewma(0.94, r2_est, idx_ll)
+LR_lambda   <- max(0, 2 * (ll_opt - ll_094))
+p_LR_lambda <- pchisq(LR_lambda, df = 1, lower.tail = FALSE)
+vida_ewma   <- log(0.5) / log(lambda_opt)
+peso90_ewma <- ceiling(log(0.10) / log(lambda_opt))
+
+# Serie completa con el parámetro fijo (la muestra de octubre sólo actualiza el filtro)
+var_ewma <- ewma_var(r2, lambda_opt)
+vol_ewma <- sqrt(var_ewma)
+var_ewma_094 <- ewma_var(r2, 0.94)
+met_val_ewma <- metricas_var(r2[idx_valid], var_ewma[idx_valid])
+met_val_094  <- metricas_var(r2[idx_valid], var_ewma_094[idx_valid])
+
+# Comparación de capacidad de respuesta con el PM óptimo
+vol_ma_opt <- vol_ma[, paste0("m=", m_opt)]
+reac_fun   <- function(v, h) v[t_star + h] / v[t_star] - 1
+de_cambio  <- function(v) 100 * sd(diff(v[idx_comun]))
+pesos_lag  <- 1:60
+pesos_ewma <- (1 - lambda_opt) * lambda_opt^(pesos_lag - 1)
+pesos_ma   <- ifelse(pesos_lag <= m_opt, 1 / m_opt, 0)
+reac_ma1   <- reac_fun(vol_ma_opt, 1)
+reac_ew1   <- reac_fun(vol_ewma, 1)
+reac_ma10  <- reac_fun(vol_ma_opt, 10)
+reac_ew10  <- reac_fun(vol_ewma, 10)
+```
+
+```{r fig-ewma-ll, fig.height=4.2, fig.cap="Figura 3. Log-verosimilitud del EWMA en función de lambda (muestra de estimación). La línea vertical marca el estimador de máxima verosimilitud y el punto el valor de RiskMetrics (0.94)."}
+par(mar = c(4.2, 4.8, 2.5, 1))
+plot(lambda_grid, ll_grid, type = "l", lwd = 2, col = "#0072B2",
+     xlab = expression(lambda), ylab = "Log-verosimilitud",
+     main = "Máxima verosimilitud para el EWMA")
+abline(v = lambda_opt, lty = 2, col = "#D55E00", lwd = 1.5)
+points(0.94, ll_094, pch = 19, col = "grey30")
+legend("bottomleft", c(paste0("Óptimo: ", num(lambda_opt, 4)), "RiskMetrics: 0.94"),
+       col = c("#D55E00", "grey30"), lty = c(2, NA), pch = c(NA, 19), bty = "n")
+```
+
+```{r tabla-ewma}
+te <- data.frame(
+  Concepto = c("Lambda estimada por máxima verosimilitud",
+               "Log-verosimilitud con la lambda estimada",
+               "Log-verosimilitud con lambda = 0.94 (RiskMetrics)",
+               "Estadístico LR para H0: lambda = 0.94",
+               "Valor p de la prueba LR",
+               "Vida media de un choque (días)",
+               "Días que concentran el 90% del peso",
+               "QLIKE en validación con la lambda estimada",
+               "QLIKE en validación con lambda = 0.94",
+               "RMSE en validación con la lambda estimada (%²)",
+               "RMSE en validación con lambda = 0.94 (%²)"),
+  Valor = c(num(lambda_opt, 4), num(ll_opt, 2), num(ll_094, 2), num(LR_lambda, 3),
+            pval(p_LR_lambda), num(vida_ewma, 1), as.character(peso90_ewma),
+            num(met_val_ewma["QLIKE"], 4), num(met_val_094["QLIKE"], 4),
+            num(1e4 * met_val_ewma["RMSE"], 3), num(1e4 * met_val_094["RMSE"], 3))
+)
+kable(te, align = "lr", caption = "Tabla 7. Estimación de lambda para el EWMA")
+```
+
+La log-verosimilitud alcanza su máximo en $\hat\lambda=$ `r num(lambda_opt, 4)` (Figura 3 y Tabla 7). Para contrastar ese valor con la referencia de la industria, RiskMetrics ($\lambda=0.94$ para datos diarios; J.P. Morgan/Reuters, 1996), aplicamos una prueba de razón de verosimilitudes, $LR=2\left[\ell(\hat\lambda)-\ell(0.94)\right]\sim\chi^2_1$. El estadístico es `r num(LR_lambda, 3)`, con valor p de `r pval(p_LR_lambda)`, por lo que `r if (p_LR_lambda < 0.05) "se rechaza" else "no se rechaza"` al 5% que la lambda de BBAJIO sea 0.94. En la validación, el QLIKE con $\hat\lambda$ es `r num(met_val_ewma["QLIKE"], 4)` y con 0.94 es `r num(met_val_094["QLIKE"], 4)`, `r if (met_val_ewma["QLIKE"] <= met_val_094["QLIKE"]) "a favor de la lambda estimada" else "ligeramente a favor de 0.94 en ese tramo, aunque la verosimilitud de toda la muestra favorece la lambda estimada"`.
+
+**Razón de la selección.** Usamos $\hat\lambda=$ `r num(lambda_opt, 4)` porque es el valor que hace más probable la historia observada de BBAJIO, que es el criterio estadístico de máxima verosimilitud visto en clase, `r if (p_LR_lambda < 0.05) "y porque los datos rechazan el valor genérico de RiskMetrics" else "y aunque es estadísticamente compatible con 0.94, está calibrado al activo y no a un portafolio genérico"`. En términos financieros implica una vida media de `r num(vida_ewma, 1)` días: la mitad del efecto de un choque se disipa en ese tiempo, y el 90% del peso total se concentra en los últimos `r peso90_ewma` días. `r if (lambda_opt > 0.94) "Una lambda mayor que 0.94 indica que la volatilidad de BBAJIO es más persistente que la de referencia: los episodios de estrés tienden a durar." else "Una lambda menor que 0.94 indica que en BBAJIO la información reciente es más relevante que en el estándar de la industria, por lo que conviene una memoria más corta."`
+
+**Capacidad de respuesta frente a los promedios móviles.** La Figura 4 compara cómo reparte los pesos cada modelo y la Figura 5 muestra ambas estimaciones en el tiempo.
+
+```{r fig-pesos, fig.height=4.2, fig.cap="Figura 4. Peso que recibe cada rendimiento al cuadrado según su antigüedad: EWMA vs. promedio móvil óptimo."}
+par(mar = c(4.2, 4.5, 2.5, 1))
+plot(pesos_lag - 0.15, pesos_ewma, type = "h", lwd = 3, col = col_mod["EWMA"],
+     ylim = c(0, max(c(pesos_ewma, pesos_ma)) * 1.1), xlab = "Antigüedad del rendimiento (días)",
+     ylab = "Peso", main = "Distribución de pesos")
+lines(pesos_lag + 0.15, pesos_ma, type = "h", lwd = 3, col = col_mod["MA"])
+legend("topright", c(paste0("EWMA (lambda = ", num(lambda_opt, 3), ")"),
+                     paste0("PM (m = ", m_opt, ")")),
+       col = col_mod[c("EWMA", "MA")], lwd = 3, bty = "n")
+```
+
+```{r fig-ewma-ma, fig.cap="Figura 5. Volatilidad diaria estimada por el EWMA y por el promedio móvil óptimo frente a la volatilidad realizada |r| (muestra de estimación)."}
+par(mar = c(3, 4.5, 2.5, 1))
+plot(fechas[idx_est], 100 * r_abs[idx_est], type = "h", col = "grey85", xlab = "",
+     ylab = "Volatilidad diaria (%)", main = "EWMA vs. promedio móvil óptimo")
+lines(fechas[idx_est], 100 * vol_ma_opt[idx_est], col = col_mod["MA"], lwd = 1.4)
+lines(fechas[idx_est], 100 * vol_ewma[idx_est], col = col_mod["EWMA"], lwd = 1.4)
+legend("topright", c("|r| realizada", paste0("PM (m = ", m_opt, ")"), "EWMA"),
+       col = c("grey70", col_mod[c("MA", "EWMA")]), lwd = c(4, 2, 2), bty = "n")
+```
+
+```{r tabla-ewma-ma}
+tr <- data.frame(
+  Concepto = c("Peso de la observación más reciente",
+               "Edad promedio de la información (días)",
+               "Días que concentran el 90% del peso",
+               "Desv. est. del cambio diario de la volatilidad (pp)",
+               "Cambio en la volatilidad al día siguiente del mayor choque",
+               "Cambio en la volatilidad 10 días después del mayor choque"),
+  PM = c(pct(1 / m_opt, 1), num((m_opt + 1) / 2, 1), as.character(ceiling(0.9 * m_opt)),
+         num(de_cambio(vol_ma_opt), 4), pct(reac_ma1, 1), pct(reac_ma10, 1)),
+  EWMA = c(pct(1 - lambda_opt, 1), num(1 / (1 - lambda_opt), 1), as.character(peso90_ewma),
+           num(de_cambio(vol_ewma), 4), pct(reac_ew1, 1), pct(reac_ew10, 1))
+)
+colnames(tr) <- c("Concepto", paste0("PM (m = ", m_opt, ")"), "EWMA")
+kable(tr, align = "lrr", caption = "Tabla 8. Capacidad de respuesta: EWMA vs. promedio móvil óptimo")
+```
+
+El EWMA asigna a la observación más reciente un peso de `r pct(1 - lambda_opt, 1)` (Tabla 8), frente a `r pct(1 / m_opt, 1)` del PM con $m=$ `r m_opt`, y la edad promedio de su información es de `r num(1 / (1 - lambda_opt), 1)` días frente a `r num((m_opt + 1) / 2, 1)` días del PM. La diferencia de fondo no es sólo cuánto pesa el último dato, sino cómo sale la información. En el EWMA el peso de un choque se desvanece de forma gradual; en el PM se mantiene completo durante `r m_opt` días y después desaparece de golpe. Ante el mayor choque de la muestra (`r pct(r[t_star])` el `r fecha_es(fechas[t_star])`), la volatilidad estimada subió al día siguiente `r pct(reac_ew1, 1)` con el EWMA y `r pct(reac_ma1, 1)` con el PM. Diez días después, el efecto acumulado era de `r pct(reac_ew10, 1)` y `r pct(reac_ma10, 1)`, respectivamente. `r if (reac_ew1 > reac_ma1) "El EWMA responde con más fuerza al impacto inicial y, además, sin el efecto fantasma del PM." else paste0("El PM con m = ", m_opt, " reacciona con más fuerza al impacto inicial porque cada dato pesa 1/", m_opt, ", pero ese efecto se mantiene sin cambios y luego desaparece de golpe; el EWMA reacciona de forma más moderada y se ajusta de manera continua.")`
+
+## Data Driven EWMA (DDEWMA)
+
+El DDEWMA modela directamente la desviación estándar a partir del valor absoluto de los rendimientos (Ruiz, 2026b). La señal es
+
+$$Z_t=\frac{|r_t-\bar r|}{\hat\rho},\qquad \hat\rho=\operatorname{Corr}\big(r_t-\bar r,\ \operatorname{sign}(r_t-\bar r)\big)\approx\frac{E|r_t-\bar r|}{\sigma},$$
+
+y la volatilidad se actualiza con
+
+$$\hat\sigma_{t|t-1}=\alpha\,Z_{t-1}+(1-\alpha)\,\hat\sigma_{t-1|t-2}.$$
+
+El factor $\hat\rho$ corrige que el valor absoluto subestima la desviación estándar. Bajo normalidad, $\rho=\sqrt{2/\pi}\approx0.798$; con colas pesadas es menor. El parámetro óptimo minimiza el error cuadrático medio entre $Z_t$ y el pronóstico hecho el día anterior:
+
+$$\alpha^*=\arg\min_{\alpha}\ \frac1T\sum_t\left(Z_t-\hat\sigma_{t|t-1}(\alpha)\right)^2.$$
+
+Como en el código de clase *Minimizar Error* (Ruiz, 2026a), recorremos una malla de valores de $\alpha$ y refinamos con `optimize()`. La malla cubre de 0.01 a 0.99 para no imponer de antemano dónde está el óptimo, aunque en datos diarios suele estar por debajo de 0.10 (el equivalente de un EWMA con $\lambda\approx0.94$ es $\alpha\approx0.06$). Los parámetros $\bar r$ y $\hat\rho$ se calculan sólo con la muestra de estimación.
+
+```{r dd-calculo, include=FALSE}
+r_est_num <- r[idx_est]
+r_bar     <- mean(r_est_num)
+dev_est   <- r_est_num - r_bar
+rho_hat   <- cor(dev_est, sign(dev_est))
+rho_normal <- sqrt(2 / pi)
+Z     <- abs(r - r_bar) / rho_hat     # serie completa con parámetros de la muestra de estimación
+Z_est <- Z[idx_est]
+
+dd_sigma <- function(Z, alpha, n0 = 20) {
+  n <- length(Z)
+  s <- rep(NA_real_, n)
+  s[n0 + 1] <- mean(Z[1:n0])
+  for (t in (n0 + 2):n) {
+    s[t] <- alpha * Z[t - 1] + (1 - alpha) * s[t - 1]
+  }
+  s
+}
+mse_dd <- function(alpha, Z, idx) {
+  s <- dd_sigma(Z, alpha)
+  mean((Z[idx] - s[idx])^2)
+}
+
+alpha_grid <- seq(0.01, 0.99, by = 0.01)
+mse_grid   <- sapply(alpha_grid, mse_dd, Z = Z_est, idx = idx_ll)
+a0         <- alpha_grid[which.min(mse_grid)]
+opt_dd     <- optimize(mse_dd, interval = c(max(0.001, a0 - 0.01), min(0.999, a0 + 0.01)),
+                       Z = Z_est, idx = idx_ll)
+alpha_opt  <- opt_dd$minimum
+mse_opt    <- opt_dd$objective
+if (min(mse_grid) < mse_opt) {
+  alpha_opt <- a0
+  mse_opt <- min(mse_grid)
+}
+sig_dd  <- dd_sigma(Z, alpha_opt)
+vida_dd <- log(0.5) / log(1 - alpha_opt)
+
+# Comparación con el EWMA
+mse_ewma_Z <- mean((Z[idx_ll] - vol_ewma[idx_ll])^2)
+met_dd_c   <- metricas_var(r2[idx_comun], sig_dd[idx_comun]^2)
+met_ew_c   <- metricas_var(r2[idx_comun], var_ewma[idx_comun])
+reac_dd1   <- reac_fun(sig_dd, 1)
+texto_dd_reac <- if (reac_dd1 < reac_ew1) {
+  "la señal lineal amortigua el impacto del valor extremo"
+} else if (alpha_opt > 1 - lambda_opt) {
+  "aunque su señal es lineal, el DDEWMA da más peso al último dato que el EWMA y actualiza directamente la volatilidad, sin pasar por la raíz cuadrada que amortigua el cambio relativo en los modelos de varianza; por eso reacciona más al impacto inicial y también lo olvida más rápido"
+} else {
+  "aunque su señal es lineal y su peso al último dato no es mayor que el del EWMA, el DDEWMA actualiza directamente la volatilidad, sin pasar por la raíz cuadrada que amortigua el cambio relativo en los modelos de varianza"
+}
+```
+
+```{r fig-dd-mse, fig.height=4.2, fig.cap="Figura 6. Error cuadrático medio del DDEWMA en función de alpha (muestra de estimación). La línea vertical marca el alpha óptimo."}
+par(mar = c(4.2, 4.8, 2.5, 1))
+plot(alpha_grid, 1e4 * mse_grid, type = "l", lwd = 2, col = col_mod["DDEWMA"],
+     xlab = expression(alpha), ylab = "MSE (escala Z, x10^4)",
+     main = "Selección de alpha en el DDEWMA")
+abline(v = alpha_opt, lty = 2, col = "#D55E00", lwd = 1.5)
+legend("topright", paste0("Óptimo: ", num(alpha_opt, 4)), col = "#D55E00", lty = 2, bty = "n")
+```
+
+```{r tabla-dd}
+tdd <- data.frame(
+  Concepto = c("Parámetro óptimo",
+               "Peso de la observación más reciente",
+               "Vida media de un choque (días)",
+               "Edad promedio de la información (días)",
+               "MSE frente a Z (x10^4)",
+               "QLIKE (muestra común de estimación)",
+               "RMSE en varianza (%², muestra común)",
+               "Cambio en la volatilidad al día siguiente del mayor choque",
+               "Desv. est. del cambio diario de la volatilidad (pp)"),
+  DDEWMA = c(paste0("alpha = ", num(alpha_opt, 4)), paste0(pct(alpha_opt, 1), " sobre |r|"),
+             num(vida_dd, 1), num(1 / alpha_opt, 1), num(1e4 * mse_opt, 4),
+             num(met_dd_c["QLIKE"], 4), num(1e4 * met_dd_c["RMSE"], 3),
+             pct(reac_dd1, 1), num(de_cambio(sig_dd), 4)),
+  EWMA = c(paste0("lambda = ", num(lambda_opt, 4)), paste0(pct(1 - lambda_opt, 1), " sobre r²"),
+           num(vida_ewma, 1), num(1 / (1 - lambda_opt), 1), num(1e4 * mse_ewma_Z, 4),
+           num(met_ew_c["QLIKE"], 4), num(1e4 * met_ew_c["RMSE"], 3),
+           pct(reac_ew1, 1), num(de_cambio(vol_ewma), 4))
+)
+kable(tdd, align = "lrr", caption = "Tabla 9. Parámetros del DDEWMA y comparación con el EWMA")
+```
+
+```{r fig-dd-ewma, fig.cap="Figura 7. Volatilidad diaria estimada por el DDEWMA y por el EWMA frente a la volatilidad realizada |r| (muestra de estimación)."}
+par(mar = c(3, 4.5, 2.5, 1))
+plot(fechas[idx_est], 100 * r_abs[idx_est], type = "h", col = "grey85", xlab = "",
+     ylab = "Volatilidad diaria (%)", main = "DDEWMA vs. EWMA")
+lines(fechas[idx_est], 100 * vol_ewma[idx_est], col = col_mod["EWMA"], lwd = 1.4)
+lines(fechas[idx_est], 100 * sig_dd[idx_est], col = col_mod["DDEWMA"], lwd = 1.4)
+legend("topright", c("|r| realizada", "EWMA", "DDEWMA"),
+       col = c("grey70", col_mod[c("EWMA", "DDEWMA")]), lwd = c(4, 2, 2), bty = "n")
+```
+
+En la muestra de estimación, $\bar r=$ `r num(100 * r_bar, 4)`% y $\hat\rho=$ `r num(rho_hat, 4)`, `r if (rho_hat < rho_normal) "menor" else "mayor"` que el valor de 0.798 de una distribución normal. `r if (rho_hat < rho_normal) "Esto confirma, con otro enfoque, las colas pesadas que encontramos en la Parte 3: los rendimientos se concentran cerca de cero y tienen más valores extremos que una normal." else "Esto indica que en esta muestra la relación entre el valor absoluto y la desviación estándar es cercana a la normal."` El error cuadrático medio se minimiza en $\alpha^*=$ `r num(alpha_opt, 4)` (Figura 6).
+
+**Comparación con el EWMA.** El $\alpha^*$ del DDEWMA equivale a un factor de decaimiento de $1-\alpha^*=$ `r num(1 - alpha_opt, 4)`, frente a $\hat\lambda=$ `r num(lambda_opt, 4)` del EWMA, con una vida media de `r num(vida_dd, 1)` días frente a `r num(vida_ewma, 1)` días. La diferencia estructural es la señal. El EWMA se alimenta de $r^2$, de modo que un rendimiento extremo entra elevado al cuadrado. El DDEWMA se alimenta de $|r|$, que crece de forma lineal con el choque. Ante el mayor choque de la muestra, la volatilidad estimada subió `r pct(reac_dd1, 1)` con el DDEWMA y `r pct(reac_ew1, 1)` con el EWMA: `r texto_dd_reac`. En la muestra común de estimación, el QLIKE del DDEWMA es `r num(met_dd_c["QLIKE"], 4)` y el del EWMA `r num(met_ew_c["QLIKE"], 4)` (menor es mejor), y la desviación estándar del cambio diario es de `r num(de_cambio(sig_dd), 4)` pp contra `r num(de_cambio(vol_ewma), 4)` pp (Tabla 9, Figura 7).
+
+**Razón de la selección.** Usamos $\alpha^*=$ `r num(alpha_opt, 4)` porque minimiza el error entre la volatilidad pronosticada y su referencia insesgada $Z_t$, el mismo criterio del código de clase (Ruiz, 2026a, 2026b), y porque el óptimo es interior y está bien definido (Figura 6). Desde el punto de vista financiero, el DDEWMA es una alternativa robusta al EWMA para un activo con colas pesadas como BBAJIO: al no elevar al cuadrado los rendimientos extremos, evita que un solo día atípico domine la estimación de riesgo durante semanas.
+
+## Modelo ARCH/GARCH
+
+Los modelos ARCH (Engle, 1982) y GARCH (Bollerslev, 1986) separan el rendimiento en una media condicional y una innovación:
+
+$$r_t=\mu_t+\varepsilon_t,\qquad \varepsilon_t=\sigma_t z_t,\qquad z_t\sim N(0,1).$$
+
+Siguiendo la metodología de clase (Ruiz, 2026e), primero identificamos la ecuación de la media con un modelo ARMA, después verificamos que existan efectos ARCH en sus residuales y, por último, estimamos y comparamos varios órdenes ARCH/GARCH.
+
+### Ecuación de la media: ARMA/ARIMA
+
+```{r media-calculo, include=FALSE}
+ndiff_r <- forecast::ndiffs(r_est_num)
+lp_est  <- log(px_aj[fechas_px >= as.Date("2021-01-01") & fechas_px <= fin_est])
+ndiff_p <- forecast::ndiffs(lp_est)
+lb_r10  <- Box.test(r_est_num, lag = 10, type = "Ljung-Box")
+lb_r20  <- Box.test(r_est_num, lag = 20, type = "Ljung-Box")
+
+modelo_media <- auto.arima(r_est_num, d = 0, stationary = TRUE, seasonal = FALSE)
+orden_media  <- arimaorder(modelo_media)
+arma_order   <- unname(c(orden_media[1], orden_media[3]))
+arma_txt     <- paste0("ARMA(", arma_order[1], ",", arma_order[2], ")")
+
+grid_arma <- expand.grid(p = 0:2, q = 0:2)
+tabla_arma <- do.call(rbind, lapply(seq_len(nrow(grid_arma)), function(i) {
+  p <- grid_arma$p[i]
+  q <- grid_arma$q[i]
+  m <- tryCatch(forecast::Arima(r_est_num, order = c(p, 0, q), include.mean = TRUE, method = "ML"),
+                error = function(e) NULL)
+  if (is.null(m)) return(data.frame(p = p, q = q, AIC = NA, BIC = NA, LB = NA))
+  lb <- Box.test(residuals(m), lag = 10, type = "Ljung-Box", fitdf = p + q)
+  data.frame(p = p, q = q, AIC = m$aic, BIC = m$bic, LB = lb$p.value)
+}))
+tabla_arma <- tabla_arma[order(tabla_arma$BIC), ]
+arma_bic   <- c(tabla_arma$p[1], tabla_arma$q[1])
+
+cf_m <- coef(modelo_media)
+if (length(cf_m) > 0) {
+  se_m <- sqrt(diag(modelo_media$var.coef))
+  z_m  <- cf_m / se_m
+  tabla_coef_media <- data.frame(Parametro = names(cf_m), Estimacion = cf_m, EE = se_m,
+                                 z = z_m, p = 2 * pnorm(-abs(z_m)))
+  n_sig_media <- sum(tabla_coef_media$p < 0.05, na.rm = TRUE)
+} else {
+  tabla_coef_media <- data.frame(Parametro = "Sin parámetros (media cero)", Estimacion = NA,
+                                 EE = NA, z = NA, p = NA)
+  n_sig_media <- 0
+}
+res_media <- as.numeric(residuals(modelo_media))
+R2_media  <- max(0, 1 - var(res_media) / var(r_est_num))
+texto_coef_media <- if (length(cf_m) == 0) {
+  "el modelo no requiere parámetros para la media"
+} else if (length(cf_m) == 1 && names(cf_m)[1] %in% c("intercept", "mean")) {
+  paste0("el único coeficiente es la media diaria, de ", pct(unname(cf_m[1]), 4), ", que ",
+         if (n_sig_media == 1) "es" else "no es",
+         " significativa al 5% y es muy pequeña frente a la volatilidad diaria de ", pct(sd(r_est_num), 3))
+} else {
+  paste0(n_sig_media, " de ", length(cf_m), " coeficientes ",
+         plural(n_sig_media, "es significativo", "son significativos"),
+         " al 5% y la media condicional explica sólo ", pct(R2_media, 2),
+         " de la varianza de los rendimientos")
+}
+lag_lb    <- max(10, sum(arma_order) + 5)
+lb_res10  <- Box.test(res_media, lag = lag_lb, type = "Ljung-Box", fitdf = sum(arma_order))
+```
+
+Las pruebas KPSS de `ndiffs()` (Tabla 10) indican que el logaritmo del precio requiere `r ndiff_p` `r plural(ndiff_p, "diferencia", "diferencias")` y los rendimientos `r ndiff_r`, de modo que trabajamos con $d=0$: el ARIMA$(p,0,q)$ de los rendimientos es un ARMA$(p,q)$,
+
+$$\mu_t=c+\sum_{i=1}^{p}\phi_i\,r_{t-i}+\sum_{j=1}^{q}\theta_j\,\varepsilon_{t-j}.$$
+
+```{r tabla-media-pruebas}
+tmp <- data.frame(
+  Prueba = c("Diferencias necesarias, log-precio (KPSS)",
+             "Diferencias necesarias, rendimientos (KPSS)",
+             "Ljung-Box de los rendimientos, 10 rezagos",
+             "Ljung-Box de los rendimientos, 20 rezagos",
+             paste0("Ljung-Box de los residuales del ", arma_txt, ", ", lag_lb, " rezagos")),
+  Estadistico = c(as.character(ndiff_p), as.character(ndiff_r), num(lb_r10$statistic, 2),
+                  num(lb_r20$statistic, 2), num(lb_res10$statistic, 2)),
+  `Valor p` = c("—", "—", pval(lb_r10$p.value), pval(lb_r20$p.value), pval(lb_res10$p.value)),
+  check.names = FALSE
+)
+colnames(tmp) <- c("Prueba", "Resultado / estadístico", "Valor p")
+kable(tmp, align = "lrr", caption = "Tabla 10. Pruebas sobre la media de los rendimientos (muestra de estimación)")
+```
+
+```{r tabla-arma}
+ta <- tabla_arma
+ta$Nota <- ifelse(ta$p == arma_order[1] & ta$q == arma_order[2], "Elegido por auto.arima", "")
+ta$Nota <- ifelse(ta$p == arma_bic[1] & ta$q == arma_bic[2],
+                  ifelse(ta$Nota == "", "Menor BIC", paste(ta$Nota, "/ menor BIC")), ta$Nota)
+colnames(ta) <- c("p", "q", "AIC", "BIC", "Ljung-Box (10), valor p", "Nota")
+kable(ta, digits = c(0, 0, 2, 2, 3, 0), row.names = FALSE,
+      caption = "Tabla 11. Comparación de modelos ARMA(p,q) para la media, ordenados por BIC")
+```
+
+```{r tabla-coef-media}
+tcm <- tabla_coef_media
+colnames(tcm) <- c("Parámetro", "Estimación", "Error estándar", "z", "Valor p")
+kable(tcm, digits = c(0, 6, 6, 3, 4), row.names = FALSE,
+      caption = paste0("Tabla 12. Coeficientes del modelo de la media, ", arma_txt))
+```
+
+La prueba de Ljung-Box sobre los rendimientos `r if (lb_r10$p.value < 0.05) "rechaza" else "no rechaza"` la ausencia de autocorrelación a 10 rezagos (p = `r pval(lb_r10$p.value)`) y `r if (lb_r20$p.value < 0.05) "la rechaza" else "tampoco la rechaza"` a 20 rezagos (p = `r pval(lb_r20$p.value)`). La función `auto.arima()` (Hyndman y Khandakar, 2008), que elige el orden por el criterio AICc como en clase, selecciona un **`r arma_txt`**. `r if (identical(as.numeric(arma_order), as.numeric(arma_bic))) "Coincide con el modelo de menor BIC de la Tabla 11, por lo que ambos criterios apuntan a la misma especificación." else paste0("El BIC, que penaliza más los parámetros, favorece un ARMA(", arma_bic[1], ",", arma_bic[2], "). Conservamos la elección de auto.arima por consistencia con la metodología de clase; la diferencia es menor porque la media diaria es muy pequeña frente a la volatilidad.")` Los residuales del modelo elegido `r if (lb_res10$p.value >= 0.05) "ya no muestran autocorrelación" else "aún muestran algo de autocorrelación"` (Ljung-Box, p = `r pval(lb_res10$p.value)`).
+
+**Razón de la selección.** El orden de la media se eligió con un criterio de información (AICc) y se verificó con el BIC y con la prueba de Ljung-Box sobre los residuales. Financieramente, la predictibilidad de la media es débil (Tabla 12): `r texto_coef_media`. `r if (n_sig_media == 0) "Esto es consistente con la Parte 3, donde no se rechazó una media diaria igual a cero, y con la idea de eficiencia de mercado." else "Aun así, esa predictibilidad es económicamente pequeña, en línea con la Parte 3, donde no se rechazó una media diaria igual a cero, y con la idea de eficiencia de mercado."` El papel del ARMA es limpiar la media para quedarnos con la innovación $\varepsilon_t$, que es la que modela el GARCH.
+
+### Prueba de efectos ARCH
+
+```{r tabla-archlm}
+arch_pre <- lapply(c(5, 10, 20), function(L) ArchLM(res_media, lags = L))
+tal <- data.frame(
+  Rezagos = c(5, 10, 20),
+  LM = sapply(arch_pre, function(a) a$statistic),
+  gl = sapply(arch_pre, function(a) a$df),
+  p = sapply(arch_pre, function(a) a$p.value)
+)
+arch_sig_pre <- all(tal$p < 0.05)
+tal$p <- pval(tal$p)
+colnames(tal) <- c("Rezagos (q)", "Estadístico LM = T·R²", "Grados de libertad", "Valor p")
+kable(tal, digits = c(0, 2, 0, 0), align = "rrrr", row.names = FALSE,
+      caption = paste0("Tabla 13. Prueba ARCH-LM sobre los residuales del ", arma_txt))
+```
+
+Con la función `ArchLM` de clase (Tabla 13) estimamos la regresión auxiliar $\hat\varepsilon_t^2=a_0+\sum_{i=1}^{q}a_i\hat\varepsilon_{t-i}^2+u_t$ y el estadístico $LM=T\cdot R^2\sim\chi^2_q$, bajo $H_0$: no hay efectos ARCH. `r if (arch_sig_pre) "Se rechaza H0 para 5, 10 y 20 rezagos: los rendimientos al cuadrado de BBAJIO dependen de los rendimientos al cuadrado pasados, es decir, la volatilidad se agrupa (días turbulentos seguidos de días turbulentos). Esto justifica estimar modelos de la familia ARCH/GARCH." else "La prueba no rechaza H0 en todos los rezagos, aunque la evidencia gráfica y los resultados de la Parte 3 muestran agrupamiento de volatilidad; estimamos la familia ARCH/GARCH para verificar si sus parámetros resultan significativos."`
+
+### Estimación y selección de órdenes
+
+Un GARCH$(p,q)$ con $p$ términos ARCH y $q$ términos GARCH, la misma convención de `garchOrder = c(p, q)` en `rugarch` y en el código de clase, es
+
+$$\sigma_t^2=\omega+\sum_{i=1}^{p}\alpha_i\,\varepsilon_{t-i}^2+\sum_{j=1}^{q}\beta_j\,\sigma_{t-j}^2,\qquad \omega>0,\ \ \alpha_i,\beta_j\ge0,\ \ \sum\alpha_i+\sum\beta_j<1.$$
+
+El ARCH$(p)$ es el caso $q=0$. La persistencia es $\sum\alpha_i+\sum\beta_j$ y la varianza de largo plazo es $V_L=\omega/(1-\sum\alpha_i-\sum\beta_j)$. Estimamos los seis candidatos de clase, todos con la media `r arma_txt`, con el paquete `rugarch` (Ghalanos, `r anio_rugarch`) por máxima verosimilitud con distribución normal. Este estimador sigue siendo consistente como cuasi máxima verosimilitud (QML) aunque los residuales tengan colas pesadas (Bollerslev y Wooldridge, 1992). Usamos `out.sample` para que la estimación use exclusivamente la información hasta el 30 de septiembre. Comparamos con $AIC=-2\ell+2k$ y $BIC=-2\ell+k\ln n$.
+
+```{r garch-calculo, include=FALSE}
+candidatos <- data.frame(
+  Modelo = c("ARCH(1)", "ARCH(2)", "GARCH(1,1)", "GARCH(1,2)", "GARCH(2,1)", "GARCH(2,2)"),
+  p = c(1, 2, 1, 1, 2, 2),
+  q = c(0, 0, 1, 2, 1, 2),
+  stringsAsFactors = FALSE
+)
+crear_spec <- function(p, q, arma_order) {
+  ugarchspec(
+    variance.model = list(model = "sGARCH", garchOrder = c(p, q)),
+    mean.model = list(armaOrder = arma_order, include.mean = TRUE),
+    distribution.model = "norm"
+  )
+}
+ajustar_modelo <- function(p, q, arma_order) {
+  fit <- tryCatch(
+    suppressWarnings(ugarchfit(spec = crear_spec(p, q, arma_order), data = r_todo,
+                               out.sample = n_post, solver = "hybrid")),
+    error = function(e) NULL
+  )
+  if (!is.null(fit)) {
+    conv <- tryCatch(fit@fit$convergence, error = function(e) 1)
+    if (is.null(conv) || conv != 0) fit <- NULL
+  }
+  fit
+}
+ajustar_todos <- function(arma_order) {
+  out <- lapply(seq_len(nrow(candidatos)), function(i) {
+    ajustar_modelo(candidatos$p[i], candidatos$q[i], arma_order)
+  })
+  names(out) <- candidatos$Modelo
+  out
+}
+ajustes <- ajustar_todos(arma_order)
+arma_respaldo <- FALSE
+if (all(sapply(ajustes, is.null))) {
+  arma_respaldo <- TRUE
+  arma_order <- c(0, 0)
+  arma_txt <- "ARMA(0,0)"
+  ajustes <- ajustar_todos(arma_order)
+}
+if (all(sapply(ajustes, is.null))) {
+  stop("Ningún modelo ARCH/GARCH convergió. Revisa la descarga de datos y vuelve a compilar.")
+}
+
+resumen_fit <- function(nombre, fit, n) {
+  if (is.null(fit)) {
+    return(data.frame(Modelo = nombre, Converge = FALSE, k = NA, LogLik = NA, AIC = NA,
+                      BIC = NA, omega = NA, Suma_alpha = NA, Suma_beta = NA,
+                      Persistencia = NA, V_L = NA, p_max = NA, Validos = FALSE))
+  }
+  cf  <- coef(fit)
+  mc  <- fit@fit$matcoef
+  ll  <- as.numeric(likelihood(fit))
+  k   <- length(cf)
+  a_n <- grep("^alpha", names(cf), value = TRUE)
+  b_n <- grep("^beta", names(cf), value = TRUE)
+  sa  <- sum(cf[a_n])
+  sb  <- if (length(b_n) > 0) sum(cf[b_n]) else 0
+  pers <- sa + sb
+  om  <- unname(cf["omega"])
+  vl  <- if (is.finite(pers) && pers < 1) om / (1 - pers) else NA
+  pos <- match(c(a_n, b_n), names(cf))
+  pv  <- mc[pos, 4]
+  validos <- all(is.finite(pv)) && all(pv < 0.05) && all(cf[c(a_n, b_n)] > 0) &&
+    is.finite(om) && om > 0 && is.finite(pers) && pers < 1
+  data.frame(Modelo = nombre, Converge = TRUE, k = k, LogLik = ll,
+             AIC = -2 * ll + 2 * k, BIC = -2 * ll + log(n) * k,
+             omega = om, Suma_alpha = sa, Suma_beta = sb, Persistencia = pers, V_L = vl,
+             p_max = suppressWarnings(max(pv)), Validos = validos)
+}
+tabla_garch <- do.call(rbind, lapply(names(ajustes), function(nm) resumen_fit(nm, ajustes[[nm]], n_est)))
+
+# Regla de selección: converge + parámetros de varianza positivos, significativos y estacionarios -> menor BIC
+elig <- tabla_garch$Converge & tabla_garch$Validos
+criterio_completo <- any(elig)
+if (!any(elig)) {
+  elig <- tabla_garch$Converge & !is.na(tabla_garch$Persistencia) & tabla_garch$Persistencia < 1
+}
+if (!any(elig)) elig <- tabla_garch$Converge
+i_opt        <- which(elig)[which.min(tabla_garch$BIC[elig])]
+nombre_garch <- tabla_garch$Modelo[i_opt]
+fit_opt      <- ajustes[[nombre_garch]]
+modelo_bic   <- tabla_garch$Modelo[which.min(tabla_garch$BIC)]
+modelo_aic   <- tabla_garch$Modelo[which.min(tabla_garch$AIC)]
+modelo_ll    <- tabla_garch$Modelo[which.max(tabla_garch$LogLik)]
+n_conv       <- sum(tabla_garch$Converge)
+n_valid      <- sum(tabla_garch$Validos)
+pers_opt     <- tabla_garch$Persistencia[i_opt]
+VL_opt       <- tabla_garch$V_L[i_opt]
+vida_garch   <- if (is.finite(pers_opt) && pers_opt > 0 && pers_opt < 1) log(0.5) / log(pers_opt) else NA
+texto_bic <- if (nombre_garch == modelo_bic && criterio_completo) {
+  "Es el modelo de menor BIC entre todos los candidatos y además cumple todas las condiciones de validez."
+} else if (nombre_garch == modelo_bic) {
+  "Es el modelo de menor BIC entre todos los candidatos."
+} else if (criterio_completo) {
+  paste0("Aunque ", modelo_bic, " tiene un BIC menor, alguno de sus parámetros no es significativo o no cumple las restricciones, por lo que su mejora de ajuste no es confiable; el elegido es el de menor BIC entre los modelos válidos.")
+} else {
+  paste0("Aunque ", modelo_bic, " tiene un BIC menor, no cumple la restricción de estacionariedad.")
+}
+texto_orden <- if (nombre_garch == "GARCH(1,1)") {
+  "Los modelos de mayor orden no mejoran la verosimilitud lo suficiente para compensar la penalización del BIC o tienen parámetros no significativos. Es el resultado que se observa en la gran mayoría de los activos financieros, como vimos en clase."
+} else if (grepl("^GARCH", nombre_garch)) {
+  "En este activo, los rezagos adicionales aportan información significativa sobre la varianza y mejoran la verosimilitud lo suficiente para justificar su inclusión."
+} else {
+  "Un ARCH puro requiere pocos parámetros, aunque no captura la persistencia de largo plazo que sí capturan los términos GARCH."
+}
+
+cf_opt  <- coef(fit_opt)
+alpha_g <- cf_opt[grep("^alpha", names(cf_opt))]
+beta_g  <- cf_opt[grep("^beta", names(cf_opt))]
+mc_opt  <- fit_opt@fit$matcoef
+
+# Diagnóstico de los residuales estandarizados
+z_std     <- as.numeric(fit_opt@fit$z)
+lb_z      <- Box.test(z_std, lag = 10, type = "Ljung-Box")
+lb_z2     <- Box.test(z_std^2, lag = 10, type = "Ljung-Box")
+arch_post <- ArchLM(z_std, lags = 10)
+kurt_z    <- curtosis(z_std)
+
+# Volatilidad condicional: dentro de muestra y pronósticos a un paso en octubre (parámetros fijos)
+sig_in <- as.numeric(fit_opt@fit$sigma)
+fc_roll <- tryCatch(ugarchforecast(fit_opt, n.ahead = 1, n.roll = n_post), error = function(e) NULL)
+if (!is.null(fc_roll)) {
+  sig_roll       <- as.numeric(fc_roll@forecast$sigmaFor)
+  sig_post_garch <- sig_roll[1:n_post]
+  sig_garch_sig  <- sig_roll[n_post + 1]
+} else {
+  fc_roll        <- ugarchforecast(fit_opt, n.ahead = 1, n.roll = n_post - 1)
+  sig_post_garch <- as.numeric(fc_roll@forecast$sigmaFor)
+  sig_garch_sig  <- tryCatch({
+    spec_fija <- crear_spec(length(alpha_g), length(beta_g), arma_order)
+    setfixed(spec_fija) <- as.list(cf_opt)
+    as.numeric(ugarchforecast(spec_fija, data = r_todo, n.ahead = 1)@forecast$sigmaFor)[1]
+  }, error = function(e) NA_real_)
+}
+sig_garch <- c(sig_in, sig_post_garch)
+
+# Pronóstico ex ante hecho el 30 de septiembre para todo octubre (varios pasos)
+fc_ex  <- ugarchforecast(fit_opt, n.ahead = n_post + 1)
+sig_ex <- as.numeric(fc_ex@forecast$sigmaFor)
+```
+
+```{r tabla-garch}
+tg <- tabla_garch
+tg$VolLP <- 100 * sqrt(tg$V_L)
+tg <- tg[, c("Modelo", "Converge", "k", "LogLik", "AIC", "BIC", "omega", "Suma_alpha",
+             "Suma_beta", "Persistencia", "VolLP", "p_max", "Validos")]
+tg$Converge <- ifelse(tg$Converge, "Sí", "No")
+tg$Validos  <- ifelse(tg$Validos, "Sí", "No")
+tg$Elegido  <- ifelse(tg$Modelo == nombre_garch, "Elegido", "")
+colnames(tg) <- c("Modelo", "Converge", "k", "Log-verosimilitud", "AIC", "BIC", "omega",
+                  "Suma alpha", "Suma beta", "Persistencia", "Vol. largo plazo (% diaria)",
+                  "Valor p máx. (alpha, beta)", "Parámetros válidos", "Selección")
+kable(tg, digits = c(0, 0, 0, 2, 2, 2, 8, 4, 4, 4, 3, 4, 0, 0), row.names = FALSE,
+      caption = paste0("Tabla 14. Candidatos ARCH/GARCH con media ", arma_txt,
+                       " (muestra de estimación)"))
+```
+
+```{r tabla-garch-coef}
+tgc <- data.frame(Parametro = names(cf_opt), Estimacion = mc_opt[, 1], EE = mc_opt[, 2],
+                  t = mc_opt[, 3], p = mc_opt[, 4])
+colnames(tgc) <- c("Parámetro", "Estimación", "Error estándar", "t", "Valor p")
+kable(tgc, digits = c(0, 8, 8, 3, 4), row.names = FALSE,
+      caption = paste0("Tabla 15. Coeficientes estimados del modelo elegido: ", arma_txt, "-", nombre_garch))
+```
+
+`r if (arma_respaldo) "Ningún candidato convergió con la media elegida por auto.arima, por lo que la estimación se repitió con media constante, ARMA(0,0). " else ""`De los seis candidatos, `r n_conv` `r plural(n_conv, "convergió", "convergieron")` y `r n_valid` `r plural(n_valid, "cumple", "cumplen")` todas las condiciones de validez (Tabla 14). El menor BIC corresponde a `r modelo_bic`, el menor AIC a `r modelo_aic` y la mayor log-verosimilitud a `r modelo_ll`. La regla de selección, en orden, fue: (1) que el modelo converja; (2) que todos los $\alpha_i$ y $\beta_j$ sean positivos y significativos al 5% y que $\omega>0$; (3) que la persistencia sea menor que 1, para que exista $V_L$; y (4) entre los que cumplen, el menor BIC, que castiga los parámetros adicionales y favorece la parsimonia. `r if (criterio_completo) "" else "Como ningún candidato cumplió la condición (2), se aplicaron sólo las condiciones (1), (3) y (4). "`
+
+**Razón de la selección.** Elegimos el **`r arma_txt`-`r nombre_garch`**. `r texto_bic` `r texto_orden` Financieramente (Tabla 15), $\hat\alpha_1=$ `r num(unname(alpha_g[1]), 4)` mide cuánto reacciona la volatilidad a la noticia de ayer`r if (length(beta_g) > 0) paste0(" y $\\hat\\beta_1=$ ", num(unname(beta_g[1]), 4), " cuánto se arrastra la volatilidad del día anterior") else ""`.
+
+### Diagnóstico y persistencia
+
+```{r tabla-garch-diag}
+tdg <- data.frame(
+  Prueba = c("Ljung-Box de z, 10 rezagos (autocorrelación en la media)",
+             "Ljung-Box de z², 10 rezagos (autocorrelación en la varianza)",
+             "ARCH-LM de z, 10 rezagos (efectos ARCH remanentes)",
+             "Curtosis de los residuales estandarizados z"),
+  Estadistico = c(num(lb_z$statistic, 2), num(lb_z2$statistic, 2),
+                  num(arch_post$statistic, 2), num(kurt_z, 2)),
+  p = c(pval(lb_z$p.value), pval(lb_z2$p.value), pval(arch_post$p.value), "—")
+)
+colnames(tdg) <- c("Prueba", "Estadístico", "Valor p")
+kable(tdg, align = "lrr", caption = paste0("Tabla 16. Diagnóstico de los residuales estandarizados del ",
+                                          arma_txt, "-", nombre_garch))
+```
+
+```{r fig-garch, fig.cap="Figura 8. Volatilidad condicional del modelo GARCH elegido en la muestra de estimación, frente a |r| y a la volatilidad de largo plazo (línea punteada)."}
+par(mar = c(3, 4.5, 2.5, 1))
+plot(fechas[idx_est], 100 * r_abs[idx_est], type = "h", col = "grey85", xlab = "",
+     ylab = "Volatilidad diaria (%)", main = paste0("Volatilidad condicional ", arma_txt, "-", nombre_garch))
+lines(fechas[idx_est], 100 * sig_in, col = col_mod["GARCH"], lwd = 1.5)
+if (is.finite(VL_opt)) abline(h = 100 * sqrt(VL_opt), lty = 2, lwd = 1.5)
+legend("topright", c("|r| realizada", "Volatilidad condicional", "Volatilidad de largo plazo"),
+       col = c("grey70", col_mod["GARCH"], "black"), lwd = c(4, 2, 1.5), lty = c(1, 1, 2), bty = "n")
+```
+
+En los residuales estandarizados $z_t=\hat\varepsilon_t/\hat\sigma_t$ (Tabla 16), `r if (lb_z2$p.value >= 0.05 && arch_post$p.value >= 0.05) "ya no hay autocorrelación en los cuadrados ni efectos ARCH remanentes" else "queda algo de estructura en los cuadrados"` (Ljung-Box de $z^2$: p = `r pval(lb_z2$p.value)`; ARCH-LM: p = `r pval(arch_post$p.value)`)`r if (lb_z2$p.value >= 0.05 && arch_post$p.value >= 0.05) ", por lo que el modelo captura adecuadamente la dinámica de la varianza" else ", algo frecuente en series largas con cambios de régimen, aunque la persistencia y la varianza de largo plazo siguen siendo informativas"`. La curtosis de $z_t$ es de `r num(kurt_z, 2)`, `r if (kurt_z > 3.5) "mayor que 3: el GARCH explica una parte de las colas pesadas, pero no todas. Por eso interpretamos la estimación como cuasi máxima verosimilitud y lo tomamos en cuenta al evaluar el VaR al 99% en la sección 4.4" else "cercana a 3, por lo que el supuesto normal condicional es razonable"`.
+
+La persistencia estimada es de `r num(pers_opt, 4)` (Figura 8). `r if (is.finite(vida_garch)) paste0("Un choque de volatilidad pierde la mitad de su efecto en ", num(vida_garch, 1), " días, ") else ""`la volatilidad de largo plazo hacia la que revierte el modelo es de `r if (is.finite(VL_opt)) pct(sqrt(VL_opt), 3) else "NA"` diaria (`r if (is.finite(VL_opt)) pct(sqrt(VL_opt * 252), 2) else "NA"` anualizada), frente a una desviación estándar histórica de `r pct(sd(r_est_num), 3)` en la misma muestra. `r if (is.finite(pers_opt) && pers_opt >= 0.90) "Una persistencia cercana a 1 es típica de las acciones: los periodos de alta volatilidad se prolongan, que es justamente el agrupamiento que detectó la prueba ARCH-LM." else "Una persistencia moderada indica que los choques de volatilidad de BBAJIO se disipan con relativa rapidez, aunque el agrupamiento que detectó la prueba ARCH-LM sigue presente en el corto plazo."`
+
+# Evaluación de modelos
+
+## Esquema de pronóstico fuera de muestra
+
+Todos los parámetros ($m^*$, $\hat\lambda$, $\alpha^*$, $\hat\rho$, $\bar r$ y los coeficientes ARMA-GARCH) se estimaron sólo con información hasta el 30 de septiembre de 2026 y **no se vuelven a estimar**. Para cada día $t$ de octubre, el pronóstico $\hat\sigma_{t|t-1}$ combina esos parámetros fijos con los rendimientos observados hasta $t-1$. Es la lógica de la tabla de estimaciones diarias de clase, en la que la volatilidad de cada renglón se calcula con los renglones anteriores, y de `ugarchforecast(..., n.ahead = 1, n.roll = ...)` en el código de GARCH. El 1 y el 2 de octubre sólo se usan para actualizar los filtros; la evaluación cubre del 5 al 30 de octubre (`r n_eval` días hábiles). Como complemento, en la sección 3.4 evaluamos el pronóstico *ex ante* que se habría hecho el 30 de septiembre para todo el mes.
+
+```{r eval-calculo, include=FALSE}
+pron <- data.frame(
+  fecha = fechas, r = r, abs_r = r_abs, Z = Z,
+  MA = vol_ma_opt,
+  EWMA = vol_ewma,
+  DDEWMA = sig_dd,
+  GARCH = sig_garch
+)
+mods <- c("MA", "EWMA", "DDEWMA", "GARCH")
+etq  <- c(MA = paste0("PM (m = ", m_opt, ")"), EWMA = "EWMA", DDEWMA = "DDEWMA", GARCH = nombre_garch)
+
+# Pronóstico para el siguiente día hábil después del 30 de octubre
+sig_sig <- c(
+  MA = sqrt(mean(r2[(n_total - m_opt + 1):n_total])),
+  EWMA = sqrt((1 - lambda_opt) * r2[n_total] + lambda_opt * var_ewma[n_total]),
+  DDEWMA = alpha_opt * Z[n_total] + (1 - alpha_opt) * sig_dd[n_total],
+  GARCH = sig_garch_sig
+)
+
+y_eval <- r_abs[idx_eval]
+F_eval <- sapply(mods, function(k) pron[[k]][idx_eval])
+cercano <- apply(abs(F_eval - y_eval), 1, which.min)
+dias_cercano <- sapply(seq_along(mods), function(j) sum(cercano == j))
+names(dias_cercano) <- mods
+
+met_oct <- t(sapply(mods, function(k) {
+  f <- pron[[k]][idx_eval]
+  c(RMSE = sqrt(mean((y_eval - f)^2)),
+    MAE = mean(abs(y_eval - f)),
+    Sesgo = mean(f - y_eval),
+    Sesgo_Z = mean(f - pron$Z[idx_eval]),
+    QLIKE = mean(log(f^2) + r2[idx_eval] / f^2),
+    RMSE_var = sqrt(mean((r2[idx_eval] - f^2)^2)))
+}))
+rank_oct <- apply(met_oct[, c("RMSE", "MAE", "QLIKE", "RMSE_var")], 2, rank, ties.method = "min")
+rango_oct <- rowMeans(rank_oct)
+
+rv_periodo <- sqrt(mean(r2[idx_eval]))
+prom_pron  <- sapply(mods, function(k) mean(pron[[k]][idx_eval]))
+mod_sobre_periodo <- mods[prom_pron > rv_periodo]
+mod_sub_periodo   <- mods[prom_pron <= rv_periodo]
+texto_periodo <- if (length(mod_sobre_periodo) == length(mods)) {
+  "El pronóstico promedio de los cuatro modelos fue mayor que esa cifra."
+} else if (length(mod_sobre_periodo) == 0) {
+  "El pronóstico promedio de los cuatro modelos fue menor o igual que esa cifra."
+} else {
+  paste0("El pronóstico promedio fue mayor que esa cifra en ", lista_es(etq[mod_sobre_periodo]),
+         " y menor o igual en ", lista_es(etq[mod_sub_periodo]), ".")
+}
+
+# Pronóstico ex ante desde el 30 de septiembre
+pos_eval <- idx_eval - n_est
+ex_ante <- list(
+  MA = rep(pron$MA[idx_post[1]], n_post),
+  EWMA = rep(pron$EWMA[idx_post[1]], n_post),
+  DDEWMA = rep(pron$DDEWMA[idx_post[1]], n_post),
+  GARCH = sig_ex[1:n_post]
+)
+vol_acum_real <- sqrt(sum(r2[idx_eval]))
+tabla_exante <- data.frame(
+  Modelo = unname(etq[mods]),
+  P1 = 100 * sapply(mods, function(k) ex_ante[[k]][1]),
+  P2 = 100 * sapply(mods, function(k) ex_ante[[k]][n_post]),
+  P3 = 100 * prom_pron,
+  P4 = 100 * sapply(mods, function(k) sqrt(sum(ex_ante[[k]][pos_eval]^2))),
+  P5 = 100 * sapply(mods, function(k) sqrt(mean((y_eval - ex_ante[[k]][pos_eval])^2)))
+)
+mejor_exante <- mods[which.min(abs(tabla_exante$P4 - 100 * vol_acum_real))]
+texto_exante <- if (mejor_exante == "GARCH") {
+  "Esta es la ventaja práctica de la reversión a la media: para horizontes de varios días, el GARCH no extrapola indefinidamente el nivel actual de volatilidad."
+} else {
+  paste0("En este mes, mantener el nivel de finales de septiembre (", etq[mejor_exante],
+         ") funcionó mejor que revertir hacia el largo plazo, porque la volatilidad de octubre se mantuvo más cerca del nivel reciente que del promedio histórico. Aun así, la reversión a la media es una propiedad deseable para horizontes largos, en los que extrapolar indefinidamente el nivel actual suele ser riesgoso.")
+}
+```
+
+## Tabla de estimaciones diarias (5 al 30 de octubre de 2026)
+
+La Tabla 17 sigue el formato de la tabla de estimaciones diarias de clase. Cada renglón muestra el rendimiento observado ese día, la volatilidad realizada $|r_t|$ y la volatilidad que cada modelo pronosticó para ese día con la información del día anterior. La última columna indica qué modelo quedó más cerca de $|r_t|$ y la Figura 9 muestra lo mismo de forma gráfica. El último renglón es el pronóstico para el siguiente día hábil, igual que el renglón *Tomorrow* de la tabla de clase.
+
+```{r tabla-diaria}
+tabla_diaria <- data.frame(
+  Fecha = format(fechas[idx_eval], "%d/%m/%Y"),
+  Precio = px_aj[match(fechas[idx_eval], fechas_px)],
+  Rend = 100 * r[idx_eval],
+  Real = 100 * y_eval,
+  MA = 100 * pron$MA[idx_eval],
+  EWMA = 100 * pron$EWMA[idx_eval],
+  DDEWMA = 100 * pron$DDEWMA[idx_eval],
+  GARCH = 100 * pron$GARCH[idx_eval],
+  Cercano = unname(etq[mods[cercano]]),
+  stringsAsFactors = FALSE
+)
+fila_sig <- data.frame(Fecha = "Siguiente día hábil", Precio = NA, Rend = NA, Real = NA,
+                       MA = 100 * sig_sig["MA"], EWMA = 100 * sig_sig["EWMA"],
+                       DDEWMA = 100 * sig_sig["DDEWMA"], GARCH = 100 * sig_sig["GARCH"],
+                       Cercano = "", stringsAsFactors = FALSE)
+tabla_diaria <- rbind(tabla_diaria, fila_sig)
+colnames(tabla_diaria) <- c("Fecha", "Precio ajustado (MXN)", "Rendimiento (%)",
+                            "Vol. realizada |r| (%)", paste0(etq["MA"], " (%)"), "EWMA (%)",
+                            "DDEWMA (%)", paste0(nombre_garch, " (%)"), "Más cercano a |r|")
+kable(tabla_diaria, digits = c(0, 2, 3, 3, 3, 3, 3, 3, 0), row.names = FALSE,
+      caption = "Tabla 17. Tabla de estimaciones diarias: volatilidad observada vs. estimada (pronósticos a un paso con parámetros estimados al 30 de septiembre)")
+```
+
+```{r fig-octubre, fig.height=5.2, fig.cap="Figura 9. Volatilidad diaria pronosticada por cada modelo vs. volatilidad realizada |r| (barras), del 5 al 30 de octubre de 2026."}
+par(mar = c(5.5, 4.5, 2.5, 1))
+x_ev <- fechas[idx_eval]
+y_max <- 100 * max(c(y_eval, F_eval), na.rm = TRUE) * 1.2
+plot(x_ev, 100 * y_eval, type = "h", lwd = 12, lend = 1, col = "grey80", ylim = c(0, y_max),
+     xlab = "", ylab = "Volatilidad diaria (%)", xaxt = "n",
+     main = "Volatilidad estimada vs. realizada, octubre de 2026")
+axis.Date(1, at = x_ev, format = "%d/%m", las = 2, cex.axis = 0.8)
+for (k in mods) {
+  lines(x_ev, 100 * pron[[k]][idx_eval], type = "o", pch = 16, cex = 0.7, lwd = 2, col = col_mod[k])
+}
+legend("topright", c("|r| realizada", unname(etq[mods])), col = c("grey80", col_mod[mods]),
+       lwd = c(8, 2, 2, 2, 2), bty = "n", cex = 0.85)
+```
+
+## Comparación con la volatilidad realizada
+
+```{r tabla-eval}
+tev <- data.frame(
+  Modelo = unname(etq[mods]),
+  RMSE = 100 * met_oct[, "RMSE"],
+  MAE = 100 * met_oct[, "MAE"],
+  Sesgo = 100 * met_oct[, "Sesgo"],
+  SesgoZ = 100 * met_oct[, "Sesgo_Z"],
+  QLIKE = met_oct[, "QLIKE"],
+  RMSEv = 1e4 * met_oct[, "RMSE_var"],
+  Dias = dias_cercano[mods],
+  Rango = rango_oct
+)
+colnames(tev) <- c("Modelo", "RMSE vs |r| (pp)", "MAE vs |r| (pp)", "Sesgo vs |r| (pp)",
+                   "Sesgo vs Z (pp)", "QLIKE", "RMSE varianza (%²)", "Días más cercano",
+                   "Rango promedio")
+kable(tev, digits = c(0, 4, 4, 4, 4, 4, 4, 0, 2), row.names = FALSE,
+      caption = "Tabla 18. Precisión de los pronósticos fuera de muestra, 5 al 30 de octubre de 2026 (menor es mejor, salvo días más cercano)")
+```
+
+Frente a la medida de referencia de la consigna (Tabla 18), el menor RMSE lo obtiene **`r etq[mejor_min(met_oct[, "RMSE"])]`** (`r num(100 * min(met_oct[, "RMSE"]), 4)` pp) y el menor MAE **`r etq[mejor_min(met_oct[, "MAE"])]`** (`r num(100 * min(met_oct[, "MAE"]), 4)` pp). En QLIKE, robusta al ruido de la referencia y menos sensible a los días extremos (Patton, 2011), gana **`r etq[mejor_min(met_oct[, "QLIKE"])]`**, y en RMSE de varianza **`r etq[mejor_min(met_oct[, "RMSE_var"])]`**. Considerando las cuatro métricas de precisión, el mejor rango promedio es el de **`r etq[mejor_min(rango_oct)]`**. Día por día, el modelo que más veces quedó más cerca de $|r_t|$ fue `r etq[mejor_max(dias_cercano)]` (`r max(dias_cercano)` de `r n_eval` días).
+
+La volatilidad realizada del periodo, $\sqrt{\overline{r^2}}$, fue de `r pct(rv_periodo, 3)` diaria. `r texto_periodo` Un sesgo positivo frente a $|r_t|$ no implica por sí solo sobreestimación: como $E|r_t|=\rho\,\sigma_t$, incluso un pronóstico perfecto queda en promedio por encima de $|r_t|$. Por eso la columna *Sesgo vs Z*, que usa la referencia insesgada $Z_t$, es la adecuada para hablar de sobre o subestimación. Con sólo `r n_eval` observaciones, las diferencias entre modelos deben leerse con cautela; por eso la sección 4 complementa la evaluación con la muestra de estimación.
+
+## Volatilidad del periodo y pronóstico ex ante
+
+Si el 30 de septiembre hubiéramos tenido que pronosticar todo octubre sin actualizar la información, el PM, el EWMA y el DDEWMA darían un pronóstico plano, porque su mejor estimación para cualquier día futuro es la de mañana. El GARCH, en cambio, converge gradualmente hacia su varianza de largo plazo. Para un GARCH(1,1) (Hull, 2018):
+
+$$E_t\left[\sigma^2_{t+h}\right]=V_L+(\alpha+\beta)^{h-1}\left(\sigma^2_{t+1}-V_L\right).$$
+
+`r if (nombre_garch != "GARCH(1,1)") paste0("Para el ", nombre_garch, " elegido, rugarch aplica la recursión equivalente con todos sus rezagos. ") else ""`Al agregar la varianza de los `r n_eval` días de evaluación con la regla de la diapositiva 3.1, $Var_t(R)=\sum_h E_t[\sigma^2_{t+h}]$, la volatilidad acumulada pronosticada puede compararse con la realizada, que fue de `r pct(vol_acum_real, 2)`.
+
+```{r tabla-exante}
+tx2 <- tabla_exante
+tx2 <- rbind(tx2, data.frame(Modelo = "Realizado", P1 = NA, P2 = NA, P3 = 100 * rv_periodo,
+                             P4 = 100 * vol_acum_real, P5 = NA))
+colnames(tx2) <- c("Modelo", "Pronóstico ex ante para el 1 oct (%)",
+                   "Pronóstico ex ante para el 30 oct (%)",
+                   "Promedio de pronósticos a un paso (%)",
+                   "Vol. acumulada ex ante, 5 al 30 oct (%)",
+                   "RMSE ex ante vs |r| (pp)")
+kable(tx2, digits = c(0, 3, 3, 3, 2, 4), row.names = FALSE,
+      caption = "Tabla 19. Pronóstico ex ante hecho el 30 de septiembre vs. volatilidad realizada en octubre")
+```
+
+```{r fig-exante, fig.cap="Figura 10. Pronóstico ex ante hecho el 30 de septiembre para cada día de octubre. El GARCH converge hacia su volatilidad de largo plazo (línea punteada); el resto de los modelos da un pronóstico plano."}
+par(mar = c(4, 4.5, 2.5, 1))
+x_po <- fechas[idx_post]
+y_max2 <- 100 * max(c(r_abs[idx_post], unlist(ex_ante), if (is.finite(VL_opt)) sqrt(VL_opt) else 0),
+                    na.rm = TRUE) * 1.15
+plot(x_po, 100 * r_abs[idx_post], type = "h", lwd = 10, lend = 1, col = "grey85",
+     ylim = c(0, y_max2), xlab = "", ylab = "Volatilidad diaria (%)",
+     main = "Pronóstico ex ante desde el 30 de septiembre de 2026")
+for (k in mods) lines(x_po, 100 * ex_ante[[k]], col = col_mod[k], lwd = 2)
+if (is.finite(VL_opt)) abline(h = 100 * sqrt(VL_opt), lty = 2)
+legend("topright", c("|r| realizada", unname(etq[mods]), "Vol. de largo plazo"),
+       col = c("grey80", col_mod[mods], "black"), lwd = c(8, 2, 2, 2, 2, 1),
+       lty = c(1, 1, 1, 1, 1, 2), bty = "n", cex = 0.85)
+```
+
+En la Tabla 19 y la Figura 10, el pronóstico ex ante del GARCH pasa de `r pct(ex_ante$GARCH[1], 3)` para el 1 de octubre a `r pct(ex_ante$GARCH[n_post], 3)` para el 30 de octubre`r if (is.finite(VL_opt)) paste0(", acercándose a su volatilidad de largo plazo de ", pct(sqrt(VL_opt), 3)) else ""`. `r if (ex_ante$GARCH[1] > ex_ante$GARCH[n_post]) "Como la volatilidad de finales de septiembre estaba por encima de su nivel de largo plazo, el GARCH anticipa una baja gradual." else "Como la volatilidad de finales de septiembre estaba por debajo de su nivel de largo plazo, el GARCH anticipa un aumento gradual."` La volatilidad acumulada ex ante más cercana a la realizada es la de `r etq[mejor_exante]`. `r texto_exante`
+
+# Análisis e interpretación
+
+```{r analisis-calculo, include=FALSE}
+# Regímenes de volatilidad con la volatilidad realizada centrada de 21 días (referencia ex post)
+rv21    <- sqrt(as.numeric(stats::filter(r2, rep(1 / 21, 21), sides = 2)))
+idx_reg <- idx_comun[!is.na(rv21[idx_comun])]
+q90 <- unname(quantile(rv21[idx_reg], 0.90))
+q10 <- unname(quantile(rv21[idx_reg], 0.10))
+regimen <- ifelse(rv21[idx_reg] >= q90, "Alta", ifelse(rv21[idx_reg] <= q10, "Baja", "Normal"))
+n_alta  <- sum(regimen == "Alta")
+tabla_reg <- do.call(rbind, lapply(mods, function(k) {
+  f  <- pron[[k]][idx_reg]
+  y  <- rv21[idx_reg]
+  ra <- regimen == "Alta"
+  rb <- regimen == "Baja"
+  rn <- regimen == "Normal"
+  data.frame(Modelo = unname(etq[k]),
+             Ratio_alta = mean(f[ra] / y[ra]),
+             RMSE_alta = 100 * sqrt(mean((f[ra] - y[ra])^2)),
+             Ratio_normal = mean(f[rn] / y[rn]),
+             Ratio_baja = mean(f[rb] / y[rb]),
+             RMSE_baja = 100 * sqrt(mean((f[rb] - y[rb])^2)))
+}))
+rownames(tabla_reg) <- mods
+mejor_alta <- mods[which.min(tabla_reg$RMSE_alta)]
+sub_alta   <- mods[tabla_reg$Ratio_alta < 1]
+sobre_baja <- mods[tabla_reg$Ratio_baja > 1]
+texto_sub_alta <- if (length(sub_alta) == length(mods)) {
+  "Los cuatro modelos subestiman en estos episodios (razón menor que 1): como se construyen con información pasada, cuando la volatilidad sube de golpe alcanzan el nuevo nivel con rezago."
+} else if (length(sub_alta) > 0) {
+  paste0(lista_es(etq[sub_alta]), " ", plural(length(sub_alta), "subestima", "subestiman"),
+         " en estos episodios (razón menor que 1), porque se construyen con información pasada y alcanzan el nuevo nivel de volatilidad con rezago.")
+} else {
+  "Ningún modelo subestima en promedio en estos episodios, lo que indica que reaccionan con suficiente rapidez a los cambios de régimen."
+}
+texto_sobre_baja <- if (length(sobre_baja) == 0) {
+  "En el otro extremo, en los días de baja volatilidad ningún modelo sobreestima el riesgo en promedio."
+} else if (length(sobre_baja) == length(mods)) {
+  "En el otro extremo, en los días de baja volatilidad los cuatro modelos sobreestiman el riesgo (razón mayor que 1), porque arrastran la memoria de episodios turbulentos anteriores."
+} else {
+  paste0("En el otro extremo, en los días de baja volatilidad ", lista_es(etq[sobre_baja]), " ",
+         plural(length(sobre_baja), "sobreestima", "sobreestiman"),
+         " el riesgo (razón mayor que 1), porque ",
+         plural(length(sobre_baja), "arrastra", "arrastran"),
+         " la memoria de episodios turbulentos anteriores.")
+}
+texto_patron <- if (length(sub_alta) >= 3 && length(sobre_baja) >= 3) {
+  "El promedio, sin embargo, esconde un patrón condicional (Tabla 20): los modelos tienden a **subestimar en alta volatilidad** y a **sobreestimar en calma**, porque siempre van un paso detrás del mercado."
+} else {
+  paste0("El promedio, sin embargo, esconde diferencias por régimen (Tabla 20): en alta volatilidad, ",
+         if (length(sub_alta) > 0) paste0(lista_es(etq[sub_alta]), " ", plural(length(sub_alta), "subestima", "subestiman")) else "ningún modelo subestima",
+         "; en calma, ",
+         if (length(sobre_baja) > 0) paste0(lista_es(etq[sobre_baja]), " ", plural(length(sobre_baja), "sobreestima", "sobreestiman")) else "ningún modelo sobreestima",
+         ".")
+}
+
+# Reacción ante el mayor choque y memoria de cada modelo
+reac1  <- sapply(mods, function(k) pron[[k]][t_star + 1] / pron[[k]][t_star] - 1)
+reac10 <- sapply(mods, function(k) pron[[k]][t_star + 10] / pron[[k]][t_star] - 1)
+mas_rapido <- mejor_max(reac1)
+mas_lento  <- mejor_min(reac1)
+texto_rapido <- switch(
+  mas_rapido,
+  MA = paste0("La rapidez del PM con m = ", m_opt, " viene de que cada dato pesa 1/", m_opt,
+              "; sin embargo, su reacción es escalonada y, ", m_opt,
+              " días después, el choque sale de la ventana y la volatilidad cae de golpe aunque el mercado no haya cambiado (efecto fantasma)."),
+  EWMA = "El EWMA responde al cuadrado del rendimiento, por lo que un choque grande se traslada con fuerza a la volatilidad del día siguiente.",
+  DDEWMA = paste0("El DDEWMA actualiza directamente la volatilidad, con un peso α = ", num(alpha_opt, 4),
+                  " para el último dato; aunque su señal |r| crece de forma lineal con el choque, no pasa por la raíz cuadrada que amortigua el cambio relativo de la volatilidad en los modelos de varianza."),
+  GARCH = if (length(beta_g) > 0) {
+    "El GARCH combina una reacción inmediata a la noticia de ayer (α) con persistencia (β), por lo que responde con rapidez y además conserva el efecto del choque de forma gradual."
+  } else {
+    "El ARCH hace depender la varianza de mañana directamente de los choques más recientes, por lo que un choque grande se traslada de inmediato a la volatilidad del día siguiente."
+  }
+)
+texto_dd_ew <- if (mas_rapido == "DDEWMA") {
+  ""
+} else if (reac1["DDEWMA"] < reac1["EWMA"]) {
+  "El DDEWMA reacciona menos que el EWMA ante el mismo choque, lo que es consistente con que la señal |r| es menos sensible a los valores extremos que r²."
+} else {
+  "El DDEWMA reacciona más que el EWMA ante el mismo choque: aunque su señal |r| crece de forma lineal, actualiza directamente la volatilidad y no la varianza (sección 2.4)."
+}
+psi_garch <- function(alpha, beta, K = 3000) {
+  p <- length(alpha)
+  q <- length(beta)
+  psi <- numeric(K)
+  for (k in seq_len(K)) {
+    val <- if (k <= p) alpha[k] else 0
+    for (j in seq_len(q)) {
+      if (k - j >= 1) val <- val + beta[j] * psi[k - j]
+    }
+    psi[k] <- val
+  }
+  psi
+}
+psi <- psi_garch(unname(alpha_g), unname(beta_g))
+edad_garch <- sum(seq_along(psi) * psi) / sum(psi)
+tabla_memoria <- data.frame(
+  Modelo = unname(etq[mods]),
+  Senal = c("r²", "r²", "|r|", "ε²"),
+  Peso = c(1 / m_opt, 1 - lambda_opt, alpha_opt, unname(alpha_g[1])),
+  Edad = c((m_opt + 1) / 2, 1 / (1 - lambda_opt), 1 / alpha_opt, edad_garch),
+  Vida = c(NA, vida_ewma, vida_dd, vida_garch),
+  R1 = 100 * reac1,
+  R10 = 100 * reac10
+)
+
+# Estabilidad
+tabla_estab <- data.frame(
+  Modelo = unname(etq[mods]),
+  DE_log = sapply(mods, function(k) 100 * sd(diff(log(pron[[k]][idx_comun])))),
+  CV = sapply(mods, function(k) sd(pron[[k]][idx_comun]) / mean(pron[[k]][idx_comun])),
+  Max_cambio = sapply(mods, function(k) 100 * max(abs(diff(pron[[k]][idx_comun])))),
+  DE_log_oct = sapply(mods, function(k) 100 * sd(diff(log(pron[[k]][idx_post]))))
+)
+rownames(tabla_estab) <- mods
+mas_estable   <- mods[which.min(tabla_estab$DE_log)]
+menos_estable <- mods[which.max(tabla_estab$DE_log)]
+
+# Sesgo y VaR paramétrico al 95% y al 99%
+q95 <- qnorm(0.95)
+q99 <- qnorm(0.99)
+tabla_sesgo <- do.call(rbind, lapply(mods, function(k) {
+  f   <- pron[[k]]
+  kE  <- kupiec(r[idx_comun] < -q95 * f[idx_comun], p = 0.05)
+  kE1 <- kupiec(r[idx_comun] < -q99 * f[idx_comun], p = 0.01)
+  kO  <- kupiec(r[idx_eval] < -q95 * f[idx_eval], p = 0.05)
+  data.frame(Modelo = unname(etq[k]),
+             VR_est = mean(f[idx_comun]^2) / mean(r2[idx_comun]),
+             RV_est = mean(f[idx_comun]) / mean(Z[idx_comun]),
+             VR_oct = mean(f[idx_eval]^2) / mean(r2[idx_eval]),
+             Exc_est = 100 * unname(kE["tasa"]),
+             p_Kupiec = unname(kE["p"]),
+             Exc99_est = 100 * unname(kE1["tasa"]),
+             p_Kupiec99 = unname(kE1["p"]),
+             Exc_oct = unname(kO["x"]))
+}))
+rownames(tabla_sesgo) <- mods
+# Un modelo se clasifica como sesgado sólo si el sesgo aparece en escala de varianza y de volatilidad
+clasif <- function(vr, rv) {
+  ifelse(vr > 1.10 & rv > 1.05, "sobreestima",
+         ifelse(vr < 0.90 & rv < 0.95, "subestima", "sin sesgo relevante"))
+}
+lectura <- clasif(tabla_sesgo$VR_est, tabla_sesgo$RV_est)
+names(lectura) <- mods
+texto_lectura <- if (all(lectura == "sin sesgo relevante")) {
+  "Con esa regla, ningún modelo muestra un sesgo incondicional relevante: en promedio todos reproducen el nivel de riesgo de la muestra, lo cual es esperable porque todos promedian rendimientos pasados de la misma serie."
+} else {
+  paste0("Con esa regla, ", lista_es(paste0(etq[mods[lectura != "sin sesgo relevante"]], " ",
+                                            lectura[lectura != "sin sesgo relevante"])),
+         " en promedio, mientras que ",
+         if (any(lectura == "sin sesgo relevante")) paste0(lista_es(etq[mods[lectura == "sin sesgo relevante"]]), " no muestran un sesgo incondicional relevante.") else "no hay modelos sin sesgo.")
+}
+exc99_altas <- mods[tabla_sesgo$Exc99_est > 1]
+texto_var99 <- if (length(exc99_altas) > 0) {
+  paste0("Al 99%, ", lista_es(etq[exc99_altas]), " ",
+         plural(length(exc99_altas), "supera", "superan"),
+         " la frecuencia teórica de 1%: con colas pesadas, el cuantil normal puede bastar al 95%, pero se queda corto para las pérdidas extremas, que son las relevantes para el capital.")
+} else {
+  "Al 99%, ningún modelo supera la frecuencia teórica de 1%, por lo que en esta muestra el supuesto normal tampoco subestima las pérdidas extremas."
+}
+texto_var95 <- if (any(tabla_sesgo$Exc_est > 5)) {
+  "Una tasa superior a 5% indica que el modelo se queda corto cuando la volatilidad sube de golpe, que es justamente cuando más importa el VaR."
+} else {
+  "Ninguna tasa supera el 5%: al 95%, los modelos no subestiman sistemáticamente la pérdida potencial."
+}
+mas_sub   <- mods[which.max(tabla_sesgo$Exc_est)]
+mas_sobre <- mods[which.max(tabla_reg$Ratio_baja)]
+sobre_oct <- mods[tabla_sesgo$VR_oct > 1]
+sub_oct   <- mods[tabla_sesgo$VR_oct <= 1]
+kupiec_rech <- mods[tabla_sesgo$p_Kupiec < 0.05]
+texto_resp_sub <- if (tabla_sesgo[mas_sub, "Exc_est"] > 5) {
+  paste0("El modelo que más tiende a **subestimar** el riesgo es **", etq[mas_sub],
+         "**, con la mayor frecuencia de pérdidas por encima del VaR (",
+         num(tabla_sesgo[mas_sub, "Exc_est"], 2), "% frente al 5% teórico).")
+} else {
+  paste0("Ningún modelo excede el 5% teórico de pérdidas por encima del VaR; el que más se acerca, y por lo tanto el que más tiende a **subestimar**, es **",
+         etq[mas_sub], "** (", num(tabla_sesgo[mas_sub, "Exc_est"], 2), "%).")
+}
+texto_resp_sobre <- if (tabla_reg[mas_sobre, "Ratio_baja"] > 1) {
+  paste0("El que más tiende a **sobreestimar** es **", etq[mas_sobre],
+         "**, con la mayor razón de captura en los periodos de calma (",
+         num(tabla_reg[mas_sobre, "Ratio_baja"], 3),
+         "), porque mantiene elevada la volatilidad estimada cuando el mercado ya se tranquilizó.")
+} else {
+  paste0("Ningún modelo sobreestima en promedio en los periodos de calma; el que más se acerca es **",
+         etq[mas_sobre], "** (razón de ", num(tabla_reg[mas_sobre, "Ratio_baja"], 3), ").")
+}
+texto_mismo <- if (mas_sub == mas_sobre) {
+  paste0("Que ", etq[mas_sub], " aparezca en ambos lados no es contradictorio: es el comportamiento de un modelo que se ajusta con retraso, que se queda corto cuando la volatilidad sube y tarda en bajar cuando el mercado se calma.")
+} else {
+  ""
+}
+```
+
+## ¿Qué modelo captura mejor los periodos de alta volatilidad?
+
+Para identificar los periodos de alta volatilidad usamos una referencia ex post más estable que $|r_t|$: la volatilidad realizada centrada de 21 días,
+
+$$RV_t=\sqrt{\frac{1}{21}\sum_{j=-10}^{10} r_{t+j}^2},$$
+
+que describe el nivel de riesgo alrededor de cada fecha. Clasificamos como **alta volatilidad** los días en el 10% superior de $RV_t$ (`r pct(q90, 2)` diario o más; `r n_alta` días) y como **baja volatilidad** los del 10% inferior (`r pct(q10, 2)` o menos). La Tabla 20 muestra, para cada régimen, la razón promedio entre el pronóstico y $RV_t$ (1 indica captura perfecta y un valor menor que 1, subestimación) y el RMSE.
+
+```{r tabla-regimen}
+treg <- tabla_reg
+colnames(treg) <- c("Modelo", "Razón pron./RV, alta vol.", "RMSE alta vol. (pp)",
+                    "Razón pron./RV, normal", "Razón pron./RV, baja vol.", "RMSE baja vol. (pp)")
+kable(treg, digits = c(0, 3, 4, 3, 3, 4), row.names = FALSE,
+      caption = "Tabla 20. Captura de la volatilidad por régimen (muestra común de estimación)")
+```
+
+**Respuesta.** El modelo que mejor captura los periodos de alta volatilidad es **`r etq[mejor_alta]`**: tiene el menor RMSE en ese régimen (`r num(tabla_reg[mejor_alta, "RMSE_alta"], 4)` pp) y su pronóstico equivale en promedio a `r pct(tabla_reg[mejor_alta, "Ratio_alta"], 1)` de la volatilidad realizada. `r texto_sub_alta` `r texto_sobre_baja`
+
+La Figura 11 ilustra el mecanismo con el rendimiento de mayor magnitud de la muestra, `r pct(r[t_star])` el `r fecha_es(fechas[t_star])``r if (!is.na(evento_choque)) paste0(", ", evento_choque) else ""`. Este tipo de choques, que en la Parte 2 asociamos con eventos políticos y macroeconómicos que los inversionistas no pueden anticipar, son los que ponen a prueba un modelo de volatilidad.
+
+```{r fig-choque, fig.cap="Figura 11. Respuesta de cada modelo al mayor choque de la muestra de estimación (línea punteada). Las barras son la volatilidad realizada |r|."}
+par(mar = c(3, 4.5, 2.5, 1))
+ventana <- max(1, t_star - 20):min(n_total, t_star + max(60, m_opt + 20))
+y_max3 <- 100 * max(c(r_abs[ventana], unlist(lapply(mods, function(k) pron[[k]][ventana]))),
+                    na.rm = TRUE) * 1.1
+plot(fechas[ventana], 100 * r_abs[ventana], type = "h", lwd = 4, lend = 1, col = "grey80",
+     ylim = c(0, y_max3), xlab = "", ylab = "Volatilidad diaria (%)",
+     main = paste0("Respuesta al choque del ", format(fechas[t_star], "%d/%m/%Y")))
+for (k in mods) lines(fechas[ventana], 100 * pron[[k]][ventana], col = col_mod[k], lwd = 2)
+abline(v = fechas[t_star], lty = 2)
+legend("topright", c("|r| realizada", unname(etq[mods])), col = c("grey80", col_mod[mods]),
+       lwd = c(6, 2, 2, 2, 2), bty = "n", cex = 0.85)
+```
+
+## ¿Qué modelo reacciona más rápidamente ante cambios en el mercado?
+
+La velocidad de reacción depende de cuánto pesa la observación más reciente y de qué tan rápido se olvida la información. Para el GARCH, el peso de cada innovación pasada se obtiene de la representación ARCH($\infty$), $\sigma_t^2=\frac{\omega}{1-\sum\beta_j}+\sum_{k\ge1}\psi_k\,\varepsilon^2_{t-k}$, con $\psi_1=\alpha_1$. La vida media de un choque es $\ln 0.5/\ln\lambda$ en el EWMA, $\ln 0.5/\ln(1-\alpha)$ en el DDEWMA y $\ln 0.5/\ln(\sum\alpha_i+\sum\beta_j)$ en el GARCH. En el PM, un choque pesa lo mismo durante $m$ días y luego desaparece.
+
+```{r tabla-memoria}
+tmem <- tabla_memoria
+colnames(tmem) <- c("Modelo", "Señal", "Peso del dato más reciente",
+                    "Edad promedio de la información (días)", "Vida media (días)",
+                    "Cambio al día siguiente del choque (%)", "Cambio 10 días después (%)")
+kable(tmem, digits = c(0, 0, 4, 1, 1, 1, 1), row.names = FALSE,
+      caption = "Tabla 21. Memoria de cada modelo y reacción ante el mayor choque de la muestra")
+```
+
+**Respuesta.** **`r etq[mas_rapido]`** es el que reacciona más rápido (Tabla 21): al día siguiente del mayor choque, su volatilidad estimada aumentó `r pct(reac1[mas_rapido], 1)`, frente a `r pct(reac1[mas_lento], 1)` de `r etq[mas_lento]`, el más lento. `r texto_rapido` `r texto_dd_ew` En términos financieros, reaccionar rápido es valioso para la gestión de riesgos, porque el VaR y los límites de exposición se ajustan cuando el mercado cambia y no semanas después. Sin embargo, la rapidez tiene un costo en estabilidad, como se muestra a continuación.
+
+## ¿Qué modelo presenta mayor estabilidad en sus estimaciones?
+
+Medimos la estabilidad con la desviación estándar del cambio diario en el logaritmo de la volatilidad estimada (cuánto cambia en términos relativos de un día a otro), el coeficiente de variación y el mayor cambio diario.
+
+```{r tabla-estabilidad}
+tes <- tabla_estab
+colnames(tes) <- c("Modelo", "DE del cambio diario en log-vol. (%)", "Coef. de variación",
+                   "Mayor cambio diario (pp)", "DE del cambio diario en log-vol., octubre (%)")
+kable(tes, digits = c(0, 3, 3, 3, 3), row.names = FALSE,
+      caption = "Tabla 22. Estabilidad de las estimaciones (muestra común de estimación y octubre)")
+```
+
+**Respuesta.** **`r etq[mas_estable]`** presenta la mayor estabilidad (Tabla 22): la desviación estándar de su cambio diario relativo es de `r num(tabla_estab[mas_estable, "DE_log"], 3)`%, frente a `r num(tabla_estab[menos_estable, "DE_log"], 3)`% de `r etq[menos_estable]`, el menos estable. `r if (mas_estable == mas_rapido) "En este caso el mismo modelo combina rapidez y estabilidad, una propiedad poco común y valiosa." else "La estabilidad tiene un costo: el modelo más estable no es el que reacciona más rápido. Es el mismo balance entre suavidad y reacción que vimos al aumentar la ventana del PM."` Para la toma de decisiones, un modelo demasiado inestable genera cambios frecuentes en el VaR y en los límites de riesgo que no reflejan cambios reales del mercado, y uno demasiado estable deja al portafolio subprotegido cuando llega un choque.
+
+## ¿Qué modelo tiende a sobreestimar o subestimar la volatilidad?
+
+Usamos tres evidencias (Tabla 23). La primera es la razón de varianzas $VR=\overline{\hat\sigma^2}/\overline{r^2}$, en la que un valor mayor que 1 indica sobreestimación, calculada en la muestra de estimación y en octubre. La segunda es la razón de volatilidades $\overline{\hat\sigma}/\overline{Z}$ frente a la referencia insesgada $Z_t$. Necesitamos ambas porque cada modelo se calibra en una escala distinta: el DDEWMA es insesgado en volatilidad y los demás en varianza, y por la desigualdad de Jensen un pronóstico insesgado en una escala aparece ligeramente sesgado en la otra. Por eso clasificamos un modelo como sesgado sólo si ambas razones apuntan en la misma dirección ($VR$ fuera de 0.90–1.10 y razón de volatilidades fuera de 0.95–1.05). La tercera evidencia es la frecuencia con que la pérdida diaria supera el VaR paramétrico, $r_t<-z_{1-p}\,\hat\sigma_{t|t-1}$, al 95% ($z=1.645$) y al 99% ($z=2.326$), evaluada con la prueba de cobertura incondicional de Kupiec (1995):
+
+$$LR_{POF}=-2\ln\left[(1-p)^{T-x}p^{x}\right]+2\ln\left[(1-\hat\pi)^{T-x}\hat\pi^{x}\right]\sim\chi^2_1,\qquad \hat\pi=\frac{x}{T}.$$
+
+Un modelo que subestima la volatilidad produce más excedencias que la frecuencia teórica $p$; uno que la sobreestima, menos.
+
+```{r tabla-sesgo}
+tsg <- tabla_sesgo
+tsg$Lectura <- unname(lectura)
+tsg$p_Kupiec <- pval(tsg$p_Kupiec)
+tsg$p_Kupiec99 <- pval(tsg$p_Kupiec99)
+tsg <- tsg[, c("Modelo", "VR_est", "RV_est", "Lectura", "VR_oct", "Exc_est", "p_Kupiec",
+               "Exc99_est", "p_Kupiec99", "Exc_oct")]
+colnames(tsg) <- c("Modelo", "VR (estimación)", "Razón vol. vs Z (estimación)", "Lectura",
+                   "VR (octubre)", "Excedencias VaR 95% (%)", "Valor p Kupiec 95%",
+                   "Excedencias VaR 99% (%)", "Valor p Kupiec 99%",
+                   paste0("Excedencias VaR 95% en octubre (de ", n_eval, ")"))
+kable(tsg, digits = c(0, 3, 3, 0, 3, 2, 0, 2, 0, 0), row.names = FALSE,
+      caption = "Tabla 23. Sesgo de los pronósticos y desempeño del VaR paramétrico (muestra común de estimación y octubre)")
+```
+
+En la muestra de estimación, la razón de varianzas va de `r num(min(tabla_sesgo$VR_est), 3)` a `r num(max(tabla_sesgo$VR_est), 3)` y la razón de volatilidades de `r num(min(tabla_sesgo$RV_est), 3)` a `r num(max(tabla_sesgo$RV_est), 3)`. `r texto_lectura` `r texto_patron` En octubre, `r if (length(sobre_oct) > 0) paste0(lista_es(etq[sobre_oct]), " ", plural(length(sobre_oct), "sobreestimó", "sobreestimaron"), " la varianza realizada (VR mayor que 1)") else "ningún modelo sobreestimó la varianza realizada"``r if (length(sub_oct) > 0) paste0(" y ", lista_es(etq[sub_oct]), " ", plural(length(sub_oct), "la subestimó", "la subestimaron")) else ""`.
+
+En el VaR al 95%, `r etq[mas_sub]` tiene la tasa de excedencias más alta (`r num(tabla_sesgo[mas_sub, "Exc_est"], 2)`% frente al 5% teórico). `r if (length(kupiec_rech) > 0) paste0("La prueba de Kupiec rechaza la cobertura correcta al 95% para ", lista_es(etq[kupiec_rech]), ".") else "La prueba de Kupiec no rechaza la cobertura correcta al 95% en ningún modelo."` `r texto_var95` `r texto_var99`
+
+**Respuesta.** `r texto_resp_sub` `r texto_resp_sobre` `r texto_mismo` Desde la perspectiva de riesgo, subestimar es más costoso que sobreestimar: deja capital insuficiente justo cuando se materializan las pérdidas.
+
+# Conclusión
+
+```{r conclusion-calculo, include=FALSE}
+crit <- data.frame(
+  QLIKE_oct = met_oct[mods, "QLIKE"],
+  RMSE_oct = 100 * met_oct[mods, "RMSE"],
+  QLIKE_val = sapply(mods, function(k) {
+    mean(log(pron[[k]][idx_valid]^2) + r2[idx_valid] / pron[[k]][idx_valid]^2)
+  }),
+  RMSE_alta = tabla_reg[mods, "RMSE_alta"],
+  VaR_desv = abs(tabla_sesgo[mods, "Exc_est"] - 5)
+)
+rownames(crit) <- mods
+rangos <- apply(crit, 2, rank, ties.method = "min")
+rownames(rangos) <- mods
+rango_final <- rowMeans(rangos)
+orden_final <- order(rango_final, crit$QLIKE_oct)
+modelo_final <- mods[orden_final[1]]
+segundo <- mods[orden_final[2]]
+nombres_crit <- c(QLIKE_oct = "QLIKE de octubre", RMSE_oct = "RMSE de octubre",
+                  QLIKE_val = "QLIKE de validación", RMSE_alta = "RMSE en alta volatilidad",
+                  VaR_desv = "calibración del VaR al 95%")
+gana_final <- colnames(rangos)[rangos[modelo_final, ] == 1]
+texto_final <- paste0("Su rango promedio es de ", num(rango_final[modelo_final], 2),
+                      ", frente a ", num(rango_final[segundo], 2), " de ", etq[segundo],
+                      if (isTRUE(all.equal(unname(rango_final[modelo_final]), unname(rango_final[segundo])))) {
+                        " (el empate se resuelve con el menor QLIKE de octubre)"
+                      } else "",
+                      if (length(gana_final) > 0) {
+                        paste0(", y ocupa el primer lugar en ", lista_es(nombres_crit[gana_final]), ".")
+                      } else ".")
+
+# Referencia: volatilidad histórica constante (desviación estándar de toda la muestra de estimación)
+sd_hist <- sd(r_est_num)
+crit_const <- data.frame(
+  QLIKE_oct = mean(log(sd_hist^2) + r2[idx_eval] / sd_hist^2),
+  RMSE_oct = 100 * sqrt(mean((y_eval - sd_hist)^2)),
+  QLIKE_val = mean(log(sd_hist^2) + r2[idx_valid] / sd_hist^2),
+  RMSE_alta = 100 * sqrt(mean((sd_hist - rv21[idx_reg][regimen == "Alta"])^2)),
+  VaR_desv = abs(100 * mean(r[idx_comun] < -q95 * sd_hist) - 5)
+)
+n_mejor_const <- sum(crit$QLIKE_val < crit_const$QLIKE_val)
+texto_const <- if (n_mejor_const == length(mods)) {
+  paste0("En la validación, los cuatro modelos tienen un QLIKE menor que el de una volatilidad histórica constante (",
+         num(crit_const$QLIKE_val, 4), "; Tabla 24), a pesar de que esa referencia se calculó con toda la muestra de estimación, lo que la favorece. Esto confirma la conclusión central de la Parte 3: la volatilidad de BBAJIO no es constante y una estimación dinámica describe mejor el riesgo que una sola desviación estándar histórica.")
+} else if (n_mejor_const > 0) {
+  paste0("En la validación, ", n_mejor_const, " de los cuatro modelos ",
+         plural(n_mejor_const, "tiene", "tienen"),
+         " un QLIKE menor que el de una volatilidad histórica constante (", num(crit_const$QLIKE_val, 4),
+         "; Tabla 24), lo que respalda la conclusión de la Parte 3 de que la volatilidad de BBAJIO no es constante.")
+} else {
+  paste0("En la validación, ningún modelo mejora el QLIKE de una volatilidad histórica constante (",
+         num(crit_const$QLIKE_val, 4), "; Tabla 24), por lo que en ese tramo la ventaja de modelar la varianza es limitada.")
+}
+
+# Aplicación: VaR de un día para una posición de un millón de pesos
+posicion    <- 1e6
+var95_final <- q95 * unname(sig_sig[modelo_final]) * posicion
+var99_final <- q99 * unname(sig_sig[modelo_final]) * posicion
+var95_hist  <- q95 * sd_hist * posicion
+texto_var_dir <- if (var95_final > var95_hist) {
+  "El modelo indica que el riesgo actual de BBAJIO está por encima de su promedio histórico, por lo que una medición con volatilidad constante subestimaría el capital en riesgo."
+} else {
+  "El modelo indica que el riesgo actual de BBAJIO está por debajo de su promedio histórico, por lo que una medición con volatilidad constante exigiría más capital del necesario."
+}
+
+# Limitaciones que dependen de los resultados
+texto_colas <- if (length(exc99_altas) > 0 && kurt_z > 3.5) {
+  paste0("La curtosis de los residuales estandarizados (", num(kurt_z, 2),
+         ") y las excedencias del VaR al 99% indican colas más pesadas que las de una normal.")
+} else if (length(exc99_altas) > 0) {
+  "Las excedencias del VaR al 99% indican colas más pesadas que las de una normal."
+} else if (kurt_z > 3.5) {
+  paste0("Aunque en esta muestra el VaR normal funcionó razonablemente, la curtosis de los residuales estandarizados (",
+         num(kurt_z, 2), ") muestra colas más pesadas que las de una normal.")
+} else {
+  "En esta muestra el VaR normal funcionó razonablemente y la curtosis de los residuales estandarizados es cercana a 3, aunque en la Parte 3 los rendimientos mostraron colas pesadas, por lo que conviene vigilar este supuesto."
+}
+texto_asim <- if (tabla_desc[1, "Asim"] < 0) {
+  paste0("que capture el efecto apalancamiento sugerido por la asimetría negativa de los rendimientos (",
+         num(tabla_desc[1, "Asim"], 3), " en la Tabla 2)")
+} else {
+  "para verificar si las caídas generan más volatilidad que las subidas de la misma magnitud (efecto apalancamiento), como sugería la asimetría negativa de la Parte 3"
+}
+
+just_modelo <- c(
+  MA = "Es el más transparente y fácil de explicar a un comité de riesgos: la volatilidad de mañana es el promedio de los últimos días. Su desventaja es el efecto fantasma y que trata igual la información de ayer que la de hace varias semanas, por lo que conviene vigilar sus caídas abruptas cuando un choque sale de la ventana.",
+  EWMA = "Combina un solo parámetro, estimado por máxima verosimilitud, con una actualización diaria muy sencilla, que es el estándar de RiskMetrics en la industria. Su principal limitación es que no tiene reversión a la media: su pronóstico a varios días es plano, por lo que para horizontes largos conviene complementarlo con la varianza de largo plazo del GARCH.",
+  DDEWMA = "Es el más robusto ante rendimientos extremos porque se alimenta del valor absoluto y no del cuadrado, una ventaja importante en un activo con colas pesadas como BBAJIO. Su limitación es que, igual que el EWMA, su pronóstico a varios días es plano y no incorpora una varianza de largo plazo.",
+  GARCH = "Es el único que incorpora reversión a la media hacia una varianza de largo plazo, por lo que además del pronóstico de mañana produce una estructura temporal coherente para horizontes de varios días. Sus parámetros se estiman por máxima verosimilitud y su especificación se validó con pruebas sobre los residuales."
+)
+```
+
+## Comparación general
+
+```{r tabla-resumen}
+tres <- data.frame(
+  Modelo = unname(etq[mods]),
+  crit,
+  Rango = unname(rango_final),
+  Decision = ifelse(mods == modelo_final, "Elegido", ""),
+  stringsAsFactors = FALSE
+)
+fila_const <- data.frame(Modelo = "Volatilidad histórica constante (referencia)", crit_const,
+                         Rango = NA, Decision = "Sin rango", stringsAsFactors = FALSE)
+tres <- rbind(tres, fila_const)
+colnames(tres) <- c("Modelo", "QLIKE octubre", "RMSE octubre vs |r| (pp)",
+                    "QLIKE validación", "RMSE alta vol. (pp)", "Desviación del VaR vs 5% (pp)",
+                    "Rango promedio", "Decisión")
+kable(tres, digits = c(0, 4, 4, 4, 4, 2, 2, 0), row.names = FALSE,
+      caption = "Tabla 24. Resumen comparativo de los modelos (menor es mejor en todos los criterios). La volatilidad histórica constante se incluye sólo como referencia y no entra en el rango.")
+```
+
+`r texto_const` Cada modelo resuelve de forma distinta el balance entre reacción y estabilidad. El **PM** es simple, pero sufre el efecto fantasma y su calidad depende de la ventana. El **EWMA** elimina ese problema con pesos geométricos y un solo parámetro estimado por máxima verosimilitud. El **DDEWMA** es la versión robusta del EWMA ante valores extremos. El **GARCH** añade reversión a la media hacia una varianza de largo plazo. En los resultados, `r etq[mejor_min(met_oct[, "QLIKE"])]` tuvo el mejor QLIKE fuera de muestra, `r etq[mejor_alta]` capturó mejor los periodos de alta volatilidad, `r etq[mas_rapido]` fue el más rápido y `r etq[mas_estable]` el más estable.
+
+## Modelo elegido y uso para la toma de decisiones
+
+Para elegir el modelo usamos cinco criterios con significado financiero (Tabla 24): la precisión fuera de muestra en octubre, medida con QLIKE y con RMSE frente a la referencia de la consigna; la precisión en la validación de la muestra de estimación, que con `r length(idx_valid)` días compensa que octubre tenga sólo `r n_eval`; el error en los periodos de alta volatilidad, que es cuando el modelo más importa; y la calibración del VaR al 95%. Con base en el rango promedio, **el modelo que usaríamos es `r if (modelo_final == "GARCH") paste0(arma_txt, "-", nombre_garch) else etq[modelo_final]`**, seguido de `r etq[segundo]`. `r texto_final` `r just_modelo[modelo_final]`
+
+Como aplicación, con el modelo elegido la volatilidad pronosticada para el siguiente día hábil después del 30 de octubre es de `r pct(sig_sig[modelo_final], 3)` diaria (`r pct(sig_sig[modelo_final] * sqrt(252), 2)` anualizada). Para una posición de 1,000,000 de pesos en BBAJIO, el VaR paramétrico de un día sería de `r num(var95_final, 0)` pesos al 95% y de `r num(var99_final, 0)` pesos al 99%. Con la volatilidad histórica constante de la muestra de estimación (`r pct(sd_hist, 3)` diaria), el VaR al 95% sería de `r num(var95_hist, 0)` pesos. `r texto_var_dir` La diferencia, de `r num(abs(var95_final - var95_hist), 0)` pesos, es la información que aporta modelar la varianza: el capital en riesgo se ajusta al estado actual del mercado en lugar de suponer que hoy es un día promedio.
+
+## Limitaciones y siguientes pasos
+
+Los resultados deben leerse con tres precauciones. Primero, la evaluación fuera de muestra tiene sólo `r n_eval` días, por lo que un episodio aislado puede cambiar el orden de los modelos. Por eso la decisión también considera la validación dentro de muestra y el desempeño en alta volatilidad. Segundo, la volatilidad realizada diaria $|r_t|$ es una referencia ruidosa; con datos intradía podría construirse una medida más precisa. Tercero, el $\lambda$ del EWMA y los parámetros del GARCH se estimaron con la verosimilitud normal, y el VaR de todos los modelos usa el cuantil normal. `r texto_colas` Como siguientes pasos, proponemos estimar un GARCH con distribución t de Student o un modelo asimétrico (EGARCH o GJR-GARCH) `r texto_asim`, y reestimar los parámetros periódicamente conforme llegue nueva información.
+
+# Referencias {-}
+
+Bollerslev, T. (1986). Generalized autoregressive conditional heteroskedasticity. *Journal of Econometrics, 31*(3), 307–327.
+
+Bollerslev, T., & Wooldridge, J. M. (1992). Quasi-maximum likelihood estimation and inference in dynamic models with time-varying covariances. *Econometric Reviews, 11*(2), 143–172.
+
+Bolsa Mexicana de Valores. (2023–2024). *Avisos de derechos de Banco del Bajío, S.A. (BBAJIO): pago de dividendos*. https://www.bmv.com.mx
+
+Engle, R. F. (1982). Autoregressive conditional heteroscedasticity with estimates of the variance of United Kingdom inflation. *Econometrica, 50*(4), 987–1007.
+
+Ghalanos, A. (`r anio_rugarch`). *rugarch: Univariate GARCH models* (versión `r as.character(packageVersion("rugarch"))`) [Paquete de R]. https://CRAN.R-project.org/package=rugarch
+
+Hull, J. C. (2018). *Options, futures, and other derivatives* (10.ª ed.). Pearson.
+
+Hyndman, R. J., & Khandakar, Y. (2008). Automatic time series forecasting: The forecast package for R. *Journal of Statistical Software, 27*(3), 1–22.
+
+J.P. Morgan/Reuters. (1996). *RiskMetrics: Technical document* (4.ª ed.).
+
+Kupiec, P. H. (1995). Techniques for verifying the accuracy of risk measurement models. *The Journal of Derivatives, 3*(2), 73–84.
+
+Patton, A. J. (2011). Volatility forecast comparison using imperfect volatility proxies. *Journal of Econometrics, 160*(1), 246–256.
+
+R Core Team. (`r anio_R`). *R: A language and environment for statistical computing* (versión `r paste(R.version$major, R.version$minor, sep = ".")`). R Foundation for Statistical Computing. https://www.R-project.org/
+
+Rojas Alvarado, J., Hernández Soto, A. J., Ramírez Avila, F. J., & Mendez, J. P. (2026). *Proyecto Final, Partes 1, 2 y 3: Banco del Bajío*. Análisis del Riesgo, ITESO.
+
+Ruiz, R. (2026a). *Códigos de clase: Promedio móvil, EWMA, ARCH y GARCH, Funciones_GARCH y Minimizar error* [Archivos de R]. Análisis del Riesgo, ITESO.
+
+Ruiz, R. (2026b). *Data Driven EWMA (DDEWMA)* [Presentación de clase]. Análisis del Riesgo, ITESO.
+
+Ruiz, R. (2026c). *From constant to dynamic volatility* [Presentación de clase]. Análisis del Riesgo, ITESO.
+
+Ruiz, R. (2026d). *Maximum likelihood for volatility models* [Presentación de clase]. Análisis del Riesgo, ITESO.
+
+Ruiz, R. (2026e). *Modelos ARCH y GARCH* [Presentación de clase]. Análisis del Riesgo, ITESO.
+
+Ruiz, R. (2026f). *Weighted historical volatility* [Presentación de clase]. Análisis del Riesgo, ITESO.
+
+Ryan, J. A., & Ulrich, J. M. (`r anio_quantmod`). *quantmod: Quantitative financial modelling framework* (versión `r as.character(packageVersion("quantmod"))`) [Paquete de R]. https://CRAN.R-project.org/package=quantmod
+
+Yahoo Finance. (2026). *Banco del Bajío, S.A. (BBAJIOO.MX): Historical data*. https://finance.yahoo.com/quote/BBAJIOO.MX/history/
+
+# Anexo: código completo {-}
+
+El análisis se realizó en R (R Core Team, `r anio_R`). El código de todo el documento se muestra a continuación; usa el botón de la derecha para desplegarlo. Para replicar los resultados basta con compilar este archivo con conexión a internet y los paquetes de la Tabla 25 instalados.
+
+```{r versiones}
+vers <- data.frame(Paquete = c("R", paquetes),
+                   Version = c(paste(R.version$major, R.version$minor, sep = "."),
+                               sapply(paquetes, function(p) as.character(packageVersion(p)))))
+colnames(vers) <- c("Paquete", "Versión")
+kable(vers, row.names = FALSE, caption = "Tabla 25. Versiones de R y de los paquetes utilizados")
+```
+
+```{r codigo-completo, ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
